@@ -1,0 +1,41 @@
+# Secrets: never commit
+.env
+*.env
+!*.env.example
+secrets/
+*.key
+*.pem
+*.p12
+*api_key*
+*apikey*
+
+# Raw OPNsense backups contain password hashes and API keys.
+# Commit only the scrubbed copy (config-scrubbed.xml).
+infra/laptop2-lab/opnsense/config-*.xml
+!infra/laptop2-lab/opnsense/config-scrubbed.xml
+
+# Virtual machine files
+*.vmdk
+*.vmem
+*.vmsn
+*.vmss
+*.nvram
+*.iso
+*.ova
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# AI engine runtime data
+ai-engine/chroma/
+ai-engine/models/
+*.joblib
+
+# Editors and OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
