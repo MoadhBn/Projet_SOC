@@ -26,18 +26,20 @@ Working document for phase 0. Values marked "to confirm" are not applied or test
 | VMnet | Type | Use | Host adapter | VMware DHCP |
 |---|---|---|---|---|
 | VMnet0 | Bridged to `Ethernet` (Realtek), not automatic | SOC link when the cable is plugged in | n/a | n/a |
-| VMnet1 | Host-only | SOC link in solo mode (cable unplugged) | yes, 10.10.10.20 | off |
-| VMnet8 | NAT | Internet for OPNsense updates (WAN) | yes | on |
-| VMnet10 | Host-only | Targets zone | no | off |
-| VMnet11 | Host-only | Attack zone | no | off |
+| VMnet8 | NAT (existing, 192.168.78.0/24, unchanged) | Internet for OPNsense updates (WAN) | yes | on |
+| VMnet10 | Host-only, 10.10.20.0/24 | Targets zone | no | off |
+| VMnet11 | Host-only, 10.10.30.0/24 | Attack zone | no | off |
+| VMnet12 | Host-only, 10.10.10.0/24 | SOC link in solo mode (cable unplugged) | yes, 10.10.10.20 | off |
 
-Solo mode and cable mode: the Windows Ethernet adapter loses its address when no cable is plugged in, so the host cannot reach OPNsense through the bridge while working alone. During solo work the first OPNsense adapter sits on VMnet1. For integration with laptop 1 it is switched to VMnet0 and 10.10.10.20 moves from the VMnet1 host adapter to `Ethernet`. Nothing changes inside OPNsense.
+VMnet1, VMnet2 and VMnet3 already exist on this laptop for other labs (EVE-NG, GNS3) and are left untouched, which is why the project uses VMnet10 to VMnet12.
+
+Solo mode and cable mode: the Windows Ethernet adapter has no usable address when no cable is plugged in, so the host cannot reach OPNsense through the bridge while working alone. During solo work the first OPNsense adapter sits on VMnet12. For integration with laptop 1 it is switched to VMnet0, the VMnet12 host adapter is disabled and 10.10.10.20 moves to `Ethernet`. Nothing changes inside OPNsense.
 
 ## OPNsense adapters (to confirm at step 0.4)
 
 | Order | VMware network | OPNsense role | Address |
 |---|---|---|---|
-| 1 | VMnet1 (solo) or VMnet0 (cable) | SOC | 10.10.10.254/24 |
+| 1 | VMnet12 (solo) or VMnet0 (cable) | SOC | 10.10.10.254/24 |
 | 2 | VMnet8 | WAN | DHCP from VMware NAT |
 | 3 | VMnet10 | TARGETS | 10.10.20.1/24 |
 | 4 | VMnet11 | ATTACK | 10.10.30.1/24 |
