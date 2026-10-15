@@ -156,7 +156,57 @@ Verification (15 October 2026, from the laptop 2 host):
 
 Note: Windows PowerShell 5.1's `Invoke-WebRequest` fails against the web interface because it defaults to old TLS versions that OPNsense refuses; a browser or `curl` works.
 
-### Step 0.5: baseline firewall rules (not started)
+### Step 0.5a: first configuration of OPNsense (done)
+
+| Item | Setting |
+|---|---|
+| Setup wizard | LAN kept at 10.10.10.254/24, LAN DHCP server off; WAN by DHCP with "Block RFC1918 private networks" and "Block bogon networks" kept; deployment options (multi-WAN, automatic DHCP/DNS registration, IPsec) off since none applies |
+| Version | Updated from 26.7 to 26.7.7 through System > Firmware (this also proved the WAN reaches the internet through VMware NAT) |
+| Interface names | LAN renamed SOC, OPT1 renamed TARGETS, OPT2 renamed ATTACK, all enabled |
+| Hardware offloading | CRC, TSO and LRO offloading disabled (default kept); TSO offloading is documented as incompatible with Suricata in IPS mode |
+| IPv6 | Turned off on the firewall: the lab is IPv4 only and the rules are written for IPv4 |
+| Plugin | `os-vmware` installed, so VMware can shut the firewall down cleanly |
+
+Verification: Interfaces > Overview shows SOC (vmx0) 10.10.10.254, WAN (vmx1) DHCP address in 192.168.78.0/24, TARGETS (vmx2) 10.10.20.1, ATTACK (vmx3) 10.10.30.1, all up.
+
+### Step 0.5b: baseline firewall rules (done)
+
+Principle: default deny. OPNsense blocks all traffic entering an interface unless a rule allows it, so only the required flows are written. Rules are created in **Firewall > Rules [new]** (the newer rule engine, which has an API); the first matching rule wins and rules on several interfaces (floating) are evaluated before single-interface rules.
+
+Aliases (Firewall > Aliases):
+
+| Alias | Type | Content | Purpose |
+|---|---|---|---|
+| `SOC_BLOCKLIST` | External (advanced) | empty | Addresses blocked automatically by Shuffle (phase 4) |
+| `WAZUH_MANAGER` | Host(s) | 10.10.10.10 | The soc VM |
+| `WAZUH_AGENT_PORTS` | Port(s) | 1514, 1515 | Wazuh agent channel and enrolment |
+| `PRIVATE_NETS` | Network(s) | 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 | "The internet" is defined as "not private" |
+
+`SOC_BLOCKLIST` is of type External because the documentation describes this type for entries pushed by an outside program, the API endpoint `/api/firewall/alias_util/add/<alias>` accepts it, and changes apply immediately. Its entries are not kept across a firewall reboot, which is acceptable for temporary blocks (a reboot lifts them early).
+
+Rules, read back from the configuration backup:
+
+| # | Interface(s) | Action | Protocol | Source | Destination | Enabled |
+|---|---|---|---|---|---|---|
+| 1 | TARGETS, ATTACK | Block | any | `SOC_BLOCKLIST` | any | yes |
+| 2 | TARGETS, ATTACK | Block | any | any | `SOC_BLOCKLIST` | yes |
+| 3 | ATTACK | Pass | any | ATTACK net | TARGETS net | yes |
+| 4 | ATTACK | Pass | ICMP | ATTACK net | ATTACK address | yes |
+| 5 | TARGETS | Pass | TCP | TARGETS net | `WAZUH_MANAGER` port `WAZUH_AGENT_PORTS` | yes |
+| 6 | TARGETS | Pass | ICMP | TARGETS net | TARGETS address | yes |
+| 7 | TARGETS | Pass | any | TARGETS net | not `PRIVATE_NETS` (internet) | no, maintenance only |
+| 8 | ATTACK | Pass | any | ATTACK net | not `PRIVATE_NETS` (internet) | no, maintenance only |
+| 9 | SOC | Pass | TCP | SOC net | SOC address port 443 | yes |
+| 10 | SOC | Pass | ICMP | SOC net | any | yes |
+| - | SOC | Pass | any | SOC net | any | no: default "allow LAN to any" rules (IPv4 and IPv6) disabled |
+
+What is therefore blocked: attack to SOC, attack to internet, targets to SOC except the agent ports, targets to attack (open question, decided when a scenario needs it), targets and attack to internet unless a maintenance rule is enabled, SOC to the targets and attack zones (except ping). The system anti-lockout rule keeps the administration page reachable from the SOC side.
+
+Verification from the host after Apply: ping 10.10.10.254 answers, HTTPS returns the login page, HTTP is redirected to HTTPS.
+
+Finding while reading the backup: the `WAZUH_MANAGER` alias also contained the entry `__lo0_network` (the loopback network, selected by mistake in the alias form), which would have allowed the targets to reach the firewall's own loopback on ports 1514 and 1515. The entry was removed and a new backup confirmed the alias holds only 10.10.10.10 (8 enabled rules out of 12 in total).
+
+Configuration in the repository: `infra/laptop2-lab/opnsense/config-scrubbed.xml`, produced by `scrub_config.py`, which replaces the password hash, private keys and certificates with `REDACTED`. The raw backup stays local and is excluded by `.gitignore`.
 
 ### Step 0.6: target and attacker VMs (not started)
 
