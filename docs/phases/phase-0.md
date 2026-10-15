@@ -208,7 +208,55 @@ Finding while reading the backup: the `WAZUH_MANAGER` alias also contained the e
 
 Configuration in the repository: `infra/laptop2-lab/opnsense/config-scrubbed.xml`, produced by `scrub_config.py`, which replaces the password hash, private keys and certificates with `REDACTED`. The raw backup stays local and is excluded by `.gitignore`.
 
-### Step 0.6: target and attacker VMs (not started)
+### Step 0.6: target and attacker VMs (in progress)
+
+Internet access for installations goes through the maintenance rules (7 for TARGETS, 8 for ATTACK), enabled only for the duration of an installation and disabled afterwards.
+
+#### Step 0.6a: Linux target (done)
+
+| Item | Value |
+|---|---|
+| VM | `soc-target-linux`, 1 vCPU, 20 GB disk, VMnet10 |
+| Memory | Installed with 2 GB, then lowered to 1.5 GB. Canonical documents 1.5 GB as the minimum for an ISO installation, above the 1 GB estimated in the brief |
+| System | Ubuntu Server 26.04.1 LTS, hostname `target-linux`, fully updated after installation |
+| Address | 10.10.20.20/24, gateway 10.10.20.1, DNS 1.1.1.1 (static) |
+| SSH | OpenSSH server installed; it is the target of scenario T-01 (SSH brute force) |
+
+Problem met: the VMware wizard connected the VM to NAT instead of VMnet10, so the installer could not reach its gateway ("Destination Host Unreachable") and the package mirror failed. The adapter was moved to VMnet10. Since then each new VM's `.vmx` file is checked before first boot.
+
+Note: since Ubuntu 22.10, SSH uses socket activation: `ssh.socket` listens on port 22 and `ssh.service` only starts on a connection, so `systemctl is-active ssh` reports "inactive" while SSH works.
+
+Verification (maintenance rule disabled):
+
+| Test from 10.10.20.20 | Result | Proves |
+|---|---|---|
+| `ip -4 addr` | 10.10.20.20/24 | Static address |
+| ping 10.10.20.1 | replies | Rule 6 |
+| ping 10.10.10.254 | no reply | Targets cannot reach the SOC zone outside the agent ports |
+| ping 1.1.1.1 | no reply | No internet outside maintenance |
+| `systemctl is-active ssh.socket`, `ss -tln` | active, listening on 0.0.0.0:22 and [::]:22 | SSH ready for T-01 |
+
+#### Step 0.6b: Kali attacker (done)
+
+The Kali 2026.1 official VMware image already present on the laptop was reused rather than reinstalled. It ships with a desktop; instead of reinstalling without one, it is set to boot in text mode (`systemctl set-default multi-user.target`), which gives the same memory saving.
+
+| Item | Value |
+|---|---|
+| VM | `soc-kali`, 2 vCPU, 1.5 GB, VMnet11 |
+| Address | 10.10.30.10/24, gateway 10.10.30.1, DNS 1.1.1.1 (NetworkManager, static) |
+| Default password | changed |
+| Updates | not applied: the 2026.1 tools (nmap, hydra, sqlmap) cover the scenarios; rule 8 is enabled only if a missing tool has to be installed |
+
+Verification:
+
+| Test from 10.10.30.10 | Result | Proves |
+|---|---|---|
+| `ip -4 addr` | 10.10.30.10/24 | Static address |
+| ping 10.10.30.1 | replies | Rule 4 |
+| ping 10.10.20.20 | replies, TTL 63 | Rule 3: the attack path works, and the TTL decreased by one shows the packet was routed through the firewall |
+| ping 10.10.10.254 | no reply | Attack zone cannot reach the SOC zone |
+| ping 1.1.1.1 | no reply | No internet for the attacker |
+| `free -h` | 1.4 GiB total, 350 MiB used | Text mode keeps Kali light |
 
 ### Step 0.7: cable link with laptop 1 (not started, needs both laptops)
 
