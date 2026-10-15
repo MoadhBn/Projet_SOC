@@ -2,7 +2,7 @@
 
 Status: in progress. Started 13 October 2026.
 
-This file is the journal of phase 0. It is filled in step by step and closed with a French summary for the implementation chapter of the report.
+This file is the journal of phase 0.
 
 ## 1. Objective
 
