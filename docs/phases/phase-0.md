@@ -96,11 +96,65 @@ Verification (14 October 2026, from Windows):
 | VMware DHCP | No DHCP scope declared for any 10.10.x.0 network |
 | Other labs | VMnet1, VMnet2, VMnet3 and VMnet8 unchanged |
 
-### Step 0.3: host address on the SOC link (in progress)
+### Step 0.3: host address on the SOC link (done)
 
 VMware gives the host adapter of a host-only network the first address of the subnet (10.10.10.1). In the plan that address belongs to laptop 1's host, so laptop 2's host is moved to 10.10.10.20. No default gateway is set on this adapter: the internet route must stay on Wi-Fi, and nothing beyond 10.10.10.0/24 is reached from the host through it.
 
-### Step 0.4: OPNsense installation and interfaces (not started)
+Commands (administrator PowerShell):
+
+```powershell
+Remove-NetIPAddress -InterfaceAlias "VMware Network Adapter VMnet12" -AddressFamily IPv4 -Confirm:$false
+New-NetIPAddress -InterfaceAlias "VMware Network Adapter VMnet12" -IPAddress 10.10.10.20 -PrefixLength 24
+```
+
+Verification (14 October 2026):
+
+| Check | Result |
+|---|---|
+| Address on VMnet12 | 10.10.10.20/24, manual, only IPv4 address on the adapter |
+| Default route | Only through Wi-Fi (192.168.100.1); none on VMnet12 |
+| Internet from the host | Still working |
+
+Finding: two persistent Windows routes left by the ZTNA lab use the same address ranges as this project: `172.16.0.0/24 via 10.10.10.1` and `10.10.30.10/32 via 192.168.78.20` (the ZTNA lab also uses 10.10.10.0/24 and 10.10.30.10). The virtual machines of the two labs are on separate VMware networks and cannot collide; only the Windows host's routing is ambiguous. The routes are left in place, the host never needs to reach the attack zone, and the two labs are never run at the same time (laptop memory would not allow it anyway).
+
+### Step 0.4: OPNsense installation and interfaces (done)
+
+Adapter order of the VM, which fixes the interface names inside OPNsense:
+
+| VMware adapter | Network | OPNsense interface | Role | Address |
+|---|---|---|---|---|
+| Network Adapter 1 | VMnet12 (solo) / VMnet0 (cable) | vmx0 | LAN, renamed SOC | 10.10.10.254/24 |
+| Network Adapter 2 | NAT (VMnet8) | vmx1 | WAN | DHCP |
+| Network Adapter 3 | VMnet10 | vmx2 | OPT1, renamed TARGETS | 10.10.20.1/24 |
+| Network Adapter 4 | VMnet11 | vmx3 | OPT2, renamed ATTACK | 10.10.30.1/24 |
+
+The SOC side is the LAN interface on purpose: OPNsense only opens its administration page on LAN by default (anti-lockout rule), and the administrators (host, later the soc VM) are in the SOC zone. The virtual card type is VMXNET3, the type the current OPNsense documentation recommends under VMware.
+
+VM `soc-opnsense`: 2 vCPU, 3 GB RAM, 20 GB disk, BIOS firmware, OPNsense 26.7 dvd image (SHA-256 checked against the official checksum file).
+
+The VMware wizard does not expose the card type and listed the adapters in a different order, so the `.vmx` file was edited with Workstation closed (original kept as `soc-opnsense.vmx.bak-before-edit`):
+
+| Setting | Wizard result | After edit |
+|---|---|---|
+| Card order | VMnet12, VMnet10, NAT, VMnet11 | VMnet12, NAT, VMnet10, VMnet11 |
+| `ethernetN.virtualDev` | `e1000` | `vmxnet3` |
+| `guestOS` | `freebsd-64` (FreeBSD 10 or earlier) | `freebsd15-64` (OPNsense 26.7 is based on FreeBSD 15.1) |
+| `sound.present` | `TRUE` | `FALSE` |
+
+Installation: from the live ISO with the `installer` account, ZFS on a single disk (stripe). ZFS was kept, as recommended by the documentation, because it tolerates abrupt power loss better, which matters on a laptop.
+
+Interface assignment and addressing from the console (options 1 and 2): WAN `vmx1` by DHCP from VMware NAT; LAN `vmx0` 10.10.10.254/24; OPT1 `vmx2` 10.10.20.1/24; OPT2 `vmx3` 10.10.30.1/24. No upstream gateway on the internal interfaces, no IPv6, no DHCP server (all lab addresses are static), web interface kept on HTTPS.
+
+Verification (15 October 2026, from the laptop 2 host):
+
+| Check | Result |
+|---|---|
+| Console banner | Four interfaces with the planned addresses |
+| `ping 10.10.10.254` | Replies, TTL 64 (FreeBSD); MAC 00:0c:29:8f:7e:04, the VMnet12 card |
+| HTTPS 443 | Open; `https://10.10.10.254/` returns the OPNsense login page (HTTP 200) |
+| SSH 22 | Closed (SSH is off by default; not needed) |
+
+Note: Windows PowerShell 5.1's `Invoke-WebRequest` fails against the web interface because it defaults to old TLS versions that OPNsense refuses; a browser or `curl` works.
 
 ### Step 0.5: baseline firewall rules (not started)
 
