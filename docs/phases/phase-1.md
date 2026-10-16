@@ -93,6 +93,41 @@ Support note: Microsoft's Sysmon page now lists "Client: Windows 11 and higher".
 
 Verification: the encoded PowerShell command `powershell -NoProfile -EncodedCommand dwBoAG8AYQBtAGkA` (the encoded text is `whoami`) produced a Sysmon **Event ID 1** (Process Create) on `target-win`, whose CommandLine field contains the full `-EncodedCommand` argument. This is the raw event Wazuh will turn into a UC-02 (T1059.001) alert.
 
+### Step 1.3: vulnerable web application on the Linux target (done)
+
+Choice: **DVWA** (Damn Vulnerable Web Application) rather than OWASP Juice Shop. DVWA is a PHP and MySQL application: it is lighter on the 1.5 GB target, and its attacks (SQL injection, XSS) land in Apache's standard access log, which Wazuh already has decoders and rules for. Juice Shop is a heavier Node.js application whose attacks are harder to observe in logs.
+
+| Item | Value |
+|---|---|
+| Installation | Native (not Docker), following the current DVWA README: Apache 2.4.66, MariaDB, PHP with `php-mysqli` and `php-gd`, DVWA cloned into `/var/www/html/DVWA` |
+| Database | Database `dvwa`, local account `dvwa` with DVWA's documented default password (exists only inside the VM) |
+| Security level | `low` (`default_security_level` in `config/config.inc.php`) so the scenario attacks work |
+| PHP options | README's `allow_url_include` change not applied: only needed for remote file inclusion, which is not part of the scenarios |
+| Internet | Maintenance rule 7 enabled only during the installation |
+| Database initialisation | From Kali's browser (`/DVWA/setup.php`), Kali's desktop started temporarily and returned to text mode afterwards; the host cannot reach the targets zone by design |
+
+Problem met: the setup page returned "500 Internal Server Error". Apache's error log showed `Access denied for user 'dvwa'@'localhost'`: the database account had not been created as expected. It was recreated with an idempotent command, and a direct connection test (`mariadb -h 127.0.0.1 -u dvwa ...`) confirmed the fix before retrying.
+
+Verification:
+
+| Test | Result |
+|---|---|
+| Login to DVWA from Kali (10.10.30.10) | Login page, POST login (302), index and security pages served (200) |
+| `/var/log/apache2/access.log` on the target | Each request from 10.10.30.10 recorded with method, URL, status and user agent: the input Wazuh will analyse for UC-03 |
+| Memory with Apache and MariaDB running | 503 MiB used, 906 MiB available out of 1.4 GiB |
+
+### Step 1.4: Wazuh agent plugin on OPNsense (done, not enrolled)
+
+| Item | Value |
+|---|---|
+| Plugin | `os-wazuh-agent` 1.3_1, community plugin (support tier 3), hidden until "Show community plugins" is ticked in System > Firmware > Plugins |
+| Agent package installed with it | `wazuh-agent` **4.14.8** |
+| State | Installed, **disabled**; manager address to be set to 10.10.10.10 when the manager exists |
+
+Why the version matters: Wazuh requires an agent to be no newer than its manager, and the plugin's agent version is fixed by OPNsense's package repository, not chosen by us. With 4.14.8 on the firewall, a manager in 4.14.9 (current stable release) is compatible. Decision shared with laptop 1: **Wazuh 4.14.9** for the manager (official Docker single-node deployment, tag `v4.14.9`) and for the agents on both targets.
+
+Problem met: the plugin installation was refused with "Installation out of date. The update to opnsense-26.7.7 is required": the firewall was still on 26.7 although the earlier update had appeared to finish. A second firmware update brought it to 26.7.7, after which the plugin installed.
+
 ## 6. Problems met and how they were handled
 
 | Problem | Handling |
