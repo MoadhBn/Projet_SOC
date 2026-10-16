@@ -1,6 +1,6 @@
 # Phase 0: lab infrastructure (laptop 2)
 
-Status: in progress. Started 13 October 2026.
+Status: laptop 2 side finished on 16 October 2026 (started 13 October). Remaining: step 0.7, the cable link with laptop 1, which needs both laptops in the same place.
 
 This file is the journal of phase 0.
 
@@ -289,7 +289,61 @@ With OPNsense, both targets and Kali running (9 GB allocated to VMs in total) an
 
 ### Step 0.7: cable link with laptop 1 (not started, needs both laptops)
 
-### Step 0.8: connectivity matrix, snapshots (not started)
+### Step 0.8: connectivity matrix, snapshots (done, OPNsense snapshot to confirm)
+
+#### SOC zone towards the targets (16 October 2026)
+
+The laptop 2 host has no route to the targets zone. A temporary route was added for the test (`route add 10.10.20.0 mask 255.255.255.0 10.10.10.254`, not persistent), which is the same route the soc VM will need in phase 1 for Wazuh to answer its agents.
+
+| Test from the host (10.10.10.20) | Result | Proves |
+|---|---|---|
+| `tracert 10.10.20.20` | 10.10.10.254, then 10.10.20.20 | Traffic between zones goes through the firewall |
+| ping 10.10.20.20 | replies, TTL 63 | Rule 10 (SOC ping for diagnostics) |
+| ping 10.10.20.10 | replies, TTL 127 | Rule 10, and the Windows ICMP rule |
+| TCP 10.10.20.20:22 | no connection, timeout | SOC to targets is blocked except ping: SSH is listening on the target (step 0.6a), so the failure comes from the firewall |
+| TCP 10.10.20.10:3389 and 445 | no connection, timeout | Same |
+
+The temporary route was removed after the test.
+
+#### Attack zone towards the SOC zone, seen in the firewall log
+
+From Kali, `ping -c 2 10.10.10.254` and `nc -zv -w 3 10.10.10.254 443` both failed. The OPNsense log (Firewall > Log Files) shows both attempts dropped:
+
+| Interface | Direction | Protocol | Source | Destination | Action | Rule |
+|---|---|---|---|---|---|---|
+| ATTACK | in | ICMP | 10.10.30.10 | 10.10.10.254 | block | Default deny |
+| ATTACK | in | TCP | 10.10.30.10 | 10.10.10.254:443 | block | Default deny |
+
+No explicit rule is needed for this: the default deny policy covers it, and the log gives evidence for the report. Practical note: the live log is very busy (the Windows target constantly sends discovery broadcasts), so the evidence is easier to find with Plain View and a search on the source address, or with Live View filter conditions on source and destination.
+
+#### Snapshots
+
+The four VMs were shut down cleanly (OPNsense last) and a snapshot was taken of each, so the lab can be returned to this state if a later phase breaks something. Snapshots of powered-off VMs do not store memory, so they use little disk.
+
+| VM | Snapshot |
+|---|---|
+| soc-target-linux | taken |
+| soc-target-win | taken |
+| soc-kali | taken |
+| soc-opnsense | to confirm (not found in the VM files at the time of the check) |
+
+#### Connectivity matrix (summary of all tests)
+
+| From | To | Expected | Result | Evidence |
+|---|---|---|---|---|
+| Host (SOC) | Firewall 10.10.10.254, HTTPS | allowed | allowed | steps 0.4, 0.5b |
+| Host (SOC) | Targets, ping | allowed | allowed | step 0.8 |
+| Host (SOC) | Targets, TCP (SSH, RDP, SMB) | blocked | blocked | step 0.8 |
+| Targets | Own gateway, ping | allowed | allowed | step 0.6 |
+| Targets | Each other (same zone) | allowed | allowed | step 0.6c |
+| Targets | SOC zone (except agent ports) | blocked | blocked | step 0.6 |
+| Targets | Internet (maintenance rule off) | blocked | blocked | step 0.6 |
+| Attack | Own gateway, ping | allowed | allowed | step 0.6b |
+| Attack | Linux and Windows targets | allowed | allowed | steps 0.6b, 0.6c |
+| Attack | SOC zone (ping, HTTPS) | blocked | blocked, logged by "Default deny" | step 0.8 |
+| Attack | Internet | blocked | blocked | step 0.6b |
+| Targets | Wazuh manager 10.10.10.10, TCP 1514-1515 | allowed | not testable yet | the soc VM does not exist yet (phase 1) |
+| Laptop 2 SOC side | Laptop 1 over the cable | allowed | not tested | step 0.7 |
 
 ## 4. Problems met and how they were handled
 
@@ -298,7 +352,47 @@ With OPNsense, both targets and Kali running (9 GB allocated to VMs in total) an
 | OPNsense sized at 2 GB in the design, below the official minimum | Raised to 3 GB; laptop 2 has the margin |
 | Team not in the same place during the build | Solo-mode network (VMnet12) for the SOC link |
 | Lab zones have no internet but need packages during installation | A "maintenance" firewall rule, disabled by default (step 0.5) |
+| The VMware wizard offers no custom network and put VMs on NAT | Network adapter changed afterwards; each `.vmx` checked before first boot |
+| The VMware wizard cannot set the VMXNET3 card type or the FreeBSD 15 guest type | `.vmx` edited with Workstation closed |
+| Default "allow LAN to any" rules would let the SOC zone reach every zone | Disabled, replaced by two explicit rules (admin HTTPS, ping) |
+| Loopback network added by mistake to the `WAZUH_MANAGER` alias | Found by reading the configuration backup, removed |
+| The Ubuntu installer could not reach its mirror | VM on NAT instead of VMnet10, gateway and DNS fields empty; corrected |
+| Windows answers pings only from its own subnet | Explicit Windows firewall rule for ICMP echo |
+| Address ranges shared with an earlier lab (ZTNA) on the same laptop | Only the host's routing is affected; the two labs are never run together |
+| Host memory: 0.9 GB free with the four VMs and usual applications | Close other applications; plan to run only the VMs a scenario needs in phase 3 |
 
 ## 5. Résumé pour le rapport
 
-To be written when the phase is closed.
+### Ce qui a été réalisé
+
+La phase 0 a mis en place l'infrastructure du laboratoire sur le second ordinateur portable (laboratoire et IA), avant l'installation de tout outil de sécurité. Le laboratoire est découpé en trois zones réseau isolées : la zone SOC (10.10.10.0/24), la zone des cibles (10.10.20.0/24) et la zone d'attaque (10.10.30.0/24). Les zones des cibles et d'attaque sont des réseaux virtuels VMware de type « host-only » sans carte côté hôte : la seule sortie possible passe par le pare-feu.
+
+Le pare-feu OPNsense 26.7.7 (machine virtuelle de 3 Go, quatre cartes VMXNET3) relie les trois zones et dispose d'une interface WAN en NAT réservée aux mises à jour. Les machines du laboratoire ont des adresses statiques :
+
+| Machine | Système | Zone | Adresse |
+|---|---|---|---|
+| soc-opnsense | OPNsense 26.7.7 | toutes | 10.10.10.254, 10.10.20.1, 10.10.30.1 |
+| soc-target-linux | Ubuntu Server 26.04.1 LTS avec SSH | cibles | 10.10.20.20 |
+| soc-target-win | Windows 10 Professionnel 1903 | cibles | 10.10.20.10 |
+| soc-kali | Kali Linux 2026.1 en mode texte | attaque | 10.10.30.10 |
+
+La politique de filtrage suit le principe du refus par défaut : seuls les flux nécessaires sont autorisés. La zone d'attaque peut joindre les cibles (chemin d'attaque des scénarios). Les cibles ne peuvent joindre la zone SOC que sur les ports des agents Wazuh (1514 et 1515 vers 10.10.10.10). La zone SOC peut seulement administrer le pare-feu en HTTPS et effectuer des tests ping. Les zones des cibles et d'attaque n'ont pas accès à Internet ; deux règles de maintenance, désactivées par défaut, l'ouvrent temporairement pour les installations. Une liste de blocage (alias `SOC_BLOCKLIST` de type externe) est placée en tête des règles ; elle sera alimentée automatiquement par Shuffle en phase 4 au moyen de l'API d'OPNsense.
+
+### Ce qui a été vérifié
+
+Chaque flux autorisé et chaque flux interdit a été testé depuis la machine concernée. Les tests ping montrent que le trafic entre zones traverse bien le pare-feu (TTL diminué de un). Les tentatives de la machine Kali vers la zone SOC (ICMP et TCP 443) sont rejetées et apparaissent dans le journal du pare-feu avec la règle « Default deny ». Une connexion SSH de la zone SOC vers la cible Linux échoue alors que le service SSH écoute sur la cible, ce qui montre que le blocage provient du pare-feu. La configuration du pare-feu est versionnée dans le dépôt après suppression des secrets (empreinte du mot de passe, clés privées, certificats), et un instantané de référence des machines virtuelles a été pris.
+
+### Difficultés rencontrées
+
+Les difficultés ont surtout été pratiques. L'assistant de VMware ne permet ni de choisir un réseau personnalisé ni le type de carte réseau, ce qui a conduit à vérifier puis corriger le fichier de configuration de chaque machine. Une cible connectée par erreur au réseau NAT empêchait son installation. Le pare-feu de Windows n'acceptait les pings que depuis son propre sous-réseau. Enfin, la mémoire de l'hôte est presque entièrement occupée lorsque les quatre machines fonctionnent (0,9 Go libre sur 15,7 Go) : il faut fermer les autres applications, et ce point devra être pris en compte lors de l'intégration du moteur d'IA.
+
+### Écarts par rapport à la conception
+
+- Le pare-feu dispose de 3 Go de mémoire au lieu des 2 Go prévus : c'est le minimum indiqué par la documentation officielle d'OPNsense.
+- La cible Linux dispose de 1,5 Go au lieu de 1 Go : c'est le minimum indiqué par Canonical pour une installation depuis l'image ISO.
+- Les membres de l'équipe ne travaillant pas au même endroit pendant le développement, la zone SOC du second portable passe provisoirement par un réseau virtuel interne (VMnet12). Elle sera basculée sur le câble Ethernet (réseau ponté VMnet0) lors de l'intégration, sans modification du pare-feu.
+
+### Ce qui reste
+
+- Étape 0.7 : liaison par câble avec le premier portable, route statique sur la VM « soc » et règle du pare-feu Windows pour l'API d'analyse. Elle nécessite de réunir les deux portables.
+- Le test des ports des agents Wazuh (1514 et 1515) ne pourra être fait qu'une fois la VM « soc » installée (phase 1).
