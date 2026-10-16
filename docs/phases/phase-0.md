@@ -208,7 +208,7 @@ Finding while reading the backup: the `WAZUH_MANAGER` alias also contained the e
 
 Configuration in the repository: `infra/laptop2-lab/opnsense/config-scrubbed.xml`, produced by `scrub_config.py`, which replaces the password hash, private keys and certificates with `REDACTED`. The raw backup stays local and is excluded by `.gitignore`.
 
-### Step 0.6: target and attacker VMs (in progress)
+### Step 0.6: target and attacker VMs (done)
 
 Internet access for installations goes through the maintenance rules (7 for TARGETS, 8 for ATTACK), enabled only for the duration of an installation and disabled afterwards.
 
@@ -257,6 +257,35 @@ Verification:
 | ping 10.10.10.254 | no reply | Attack zone cannot reach the SOC zone |
 | ping 1.1.1.1 | no reply | No internet for the attacker |
 | `free -h` | 1.4 GiB total, 350 MiB used | Text mode keeps Kali light |
+
+#### Step 0.6c: Windows target (done)
+
+| Item | Value |
+|---|---|
+| VM | `soc-target-win`, 2 vCPU, 3 GB, 40 GB NVMe disk, UEFI, VMnet10 |
+| System | Windows 10 Professionnel version 1903 (French), not activated, not updated |
+| Installation | VMware Easy Install (unattended, local account, VMware Tools installed automatically); no internet during installation |
+| Address | 10.10.20.10/24, gateway 10.10.20.1, DNS 1.1.1.1, hostname `target-win` |
+| Windows firewall | Rule added: `LAB - Allow ICMPv4 echo request` (inbound ICMP type 8, all profiles) |
+
+Origin of the installation image: SHA-1 `DFE4D1C27E2D40D52E7D4312B9B8B506B96FC909`, identical to the French Windows 10 1903 x64 image redistributed by Le Crabe Info; no hash published by Microsoft could be found to confirm it directly. Windows 10 is out of support since 14 October 2025 and version 1903 since December 2020: for a deliberately attacked machine in an isolated lab this is acceptable and realistic.
+
+Problem met: the built-in Windows rule "File and Printer Sharing (Echo Request – ICMPv4-In)" only accepts pings from the local subnet. The Linux target (same subnet) got answers but Kali (attack zone) did not, even though the OPNsense rule allowed it. An explicit rule, accepting ICMP echo requests from any address, replaced it.
+
+Verification:
+
+| Test | Result | Proves |
+|---|---|---|
+| `ipconfig` | 10.10.20.10/24, gateway 10.10.20.1 | Static address |
+| ping 10.10.20.1, ping 10.10.20.20 | replies | Gateway and same-zone link |
+| ping 10.10.10.254 | no reply | Targets cannot reach the SOC zone |
+| ping 1.1.1.1 | no reply | No internet outside maintenance |
+| From Kali: ping 10.10.20.10 | replies | Attack path to the Windows target |
+| Edition, VMware Tools | Windows 10 Pro, service running | Reported by the operator |
+
+#### Memory measured with the four VMs running (16 October 2026)
+
+With OPNsense, both targets and Kali running (9 GB allocated to VMs in total) and ordinary applications open on the host (browser, chat applications, about 3 GB together), only **0.9 GB of the 15.7 GB remained free**. The lab fits, but only with other applications closed. This matters for phase 3: the AI engine also runs on this host (Ollama, analysis API), so during AI tests it will probably be necessary to run only the VMs a scenario needs (for example one target instead of two). This is an observation, to be measured again in phase 3.
 
 ### Step 0.7: cable link with laptop 1 (not started, needs both laptops)
 
