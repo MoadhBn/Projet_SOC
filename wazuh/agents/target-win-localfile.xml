@@ -1,0 +1,11 @@
+<!--
+  Extra log source for the Windows target (target-win, 10.10.20.10).
+  Paste inside the <ossec_config> block of
+  C:\Program Files (x86)\ossec-agent\ossec.conf, then:
+    Restart-Service wazuhsvc
+  Use cases: UC-02 encoded PowerShell, UC-05 persistence (Sysmon events).
+-->
+<localfile>
+  <location>Microsoft-Windows-Sysmon/Operational</location>
+  <log_format>eventchannel</log_format>
+</localfile>

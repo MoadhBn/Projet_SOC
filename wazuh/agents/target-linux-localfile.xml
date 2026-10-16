@@ -1,0 +1,17 @@
+<!--
+  Extra log sources for the Linux target (target-linux, 10.10.20.20).
+  Paste inside the <ossec_config> block of /var/ossec/etc/ossec.conf,
+  only for the entries the installer did not already add, then:
+    systemctl restart wazuh-agent
+  Use cases: UC-03 web exploitation (Apache logs).
+  Authentication logs (UC-01 SSH brute force) are collected by the default configuration.
+-->
+<localfile>
+  <log_format>apache</log_format>
+  <location>/var/log/apache2/access.log</location>
+</localfile>
+
+<localfile>
+  <log_format>apache</log_format>
+  <location>/var/log/apache2/error.log</location>
+</localfile>

@@ -128,6 +128,26 @@ Why the version matters: Wazuh requires an agent to be no newer than its manager
 
 Problem met: the plugin installation was refused with "Installation out of date. The update to opnsense-26.7.7 is required": the firewall was still on 26.7 although the earlier update had appeared to finish. A second firmware update brought it to 26.7.7, after which the plugin installed.
 
+### Step 1.5a: Wazuh agents pre-installed on the targets (done, waiting for the manager)
+
+The agents are installed before the manager exists, pointing at 10.10.10.10. They retry until the manager answers, then enrol, which shortens the joint session with laptop 1.
+
+| Target | Version | Installation |
+|---|---|---|
+| target-linux | 4.14.9 | Wazuh APT repository, version pinned (`wazuh-agent=4.14.9-1`), package put on hold so a system upgrade cannot make it newer than the manager; maintenance rule 7 enabled only during the installation |
+| target-win | 4.14.9 | Official MSI downloaded on the host and copied to the VM, installed with `msiexec /q WAZUH_MANAGER="10.10.10.10"` |
+
+Version policy: an agent must never be newer than its manager. Manager and target agents are on 4.14.9; the firewall's agent stays on 4.14.8, the version imposed by the OPNsense plugin, which is compatible.
+
+Verification: `systemctl is-active wazuh-agent` returns `active` on the Linux target, `Get-Service wazuhsvc` returns `Running` on the Windows target.
+
+Additional log sources, kept in the repository (`wazuh/agents/`):
+
+| File | Adds | For |
+|---|---|---|
+| `target-linux-localfile.xml` | Apache access and error logs (`log_format` `apache`) | UC-03 |
+| `target-win-localfile.xml` | Sysmon event channel `Microsoft-Windows-Sysmon/Operational` (`log_format` `eventchannel`) | UC-02, UC-05 |
+
 ## 6. Problems met and how they were handled
 
 | Problem | Handling |
