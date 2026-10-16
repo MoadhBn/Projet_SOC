@@ -68,7 +68,7 @@ Findings:
 
 - The four lab VMs are sized at 8.5 GB in total (estimate). Other applications must be closed when all four run.
 - OPNsense is given 3 GB instead of the 2 GB of the brief: the official documentation lists 3 GB as the minimum and as the amount the installer needs.
-- VMnet1, VMnet2 and VMnet3 are already used by other labs on this laptop, so the project uses VMnet10, VMnet11 and VMnet12.
+- VMnet1, VMnet2 and VMnet3 are already used by other virtual machines on this laptop, so the project uses VMnet10, VMnet11 and VMnet12.
 
 ### Step 0.2: VMware virtual networks (done)
 
@@ -84,7 +84,7 @@ Target configuration:
 
 VMware's DHCP service is turned off on the three lab networks because every machine has a fixed address from the plan; an address handed out by VMware would bypass the plan.
 
-Before changing VMnet0, every existing VM was checked: none uses the bridged network (the ZTNA lab in EVE-NG uses VMnet2, VMnet3 and NAT), so binding VMnet0 to the Ethernet card affects no other project.
+Before changing VMnet0, every existing VM on the laptop was checked: none uses the bridged network, so binding VMnet0 to the Ethernet card affects nothing else.
 
 Verification (14 October 2026, from Windows):
 
@@ -94,7 +94,7 @@ Verification (14 October 2026, from Windows):
 | VMnet10, VMnet11 | Subnets 10.10.20.0/24 and 10.10.30.0/24 configured; no host adapter exists, so the host is not part of these zones |
 | VMnet12 | Subnet 10.10.10.0/24; host adapter present and up, address 10.10.10.1 given by VMware (changed in step 0.3) |
 | VMware DHCP | No DHCP scope declared for any 10.10.x.0 network |
-| Other labs | VMnet1, VMnet2, VMnet3 and VMnet8 unchanged |
+| Existing networks | VMnet1, VMnet2, VMnet3 and VMnet8 unchanged |
 
 ### Step 0.3: host address on the SOC link (done)
 
@@ -115,7 +115,7 @@ Verification (14 October 2026):
 | Default route | Only through Wi-Fi (192.168.100.1); none on VMnet12 |
 | Internet from the host | Still working |
 
-Finding: two persistent Windows routes left by the ZTNA lab use the same address ranges as this project: `172.16.0.0/24 via 10.10.10.1` and `10.10.30.10/32 via 192.168.78.20` (the ZTNA lab also uses 10.10.10.0/24 and 10.10.30.10). The virtual machines of the two labs are on separate VMware networks and cannot collide; only the Windows host's routing is ambiguous. The routes are left in place, the host never needs to reach the attack zone, and the two labs are never run at the same time (laptop memory would not allow it anyway).
+Finding: the host already had persistent Windows routes overlapping the project's address ranges, including one towards 10.10.30.10. Virtual machines on different VMware networks cannot collide, so only the host's own routing is affected. These routes were left in place: the host never needs to reach the attack zone, and connectivity towards the attack zone is always tested from the VMs, not from the host.
 
 ### Step 0.4: OPNsense installation and interfaces (done)
 
@@ -358,7 +358,7 @@ The four VMs were shut down cleanly (OPNsense last) and a snapshot was taken of 
 | Loopback network added by mistake to the `WAZUH_MANAGER` alias | Found by reading the configuration backup, removed |
 | The Ubuntu installer could not reach its mirror | VM on NAT instead of VMnet10, gateway and DNS fields empty; corrected |
 | Windows answers pings only from its own subnet | Explicit Windows firewall rule for ICMP echo |
-| Address ranges shared with an earlier lab (ZTNA) on the same laptop | Only the host's routing is affected; the two labs are never run together |
+| Pre-existing host routes overlap the project's address ranges | Only the host's routing is affected; attack-zone tests are run from the VMs |
 | Host memory: 0.9 GB free with the four VMs and usual applications | Close other applications; plan to run only the VMs a scenario needs in phase 3 |
 
 ## 5. Résumé pour le rapport

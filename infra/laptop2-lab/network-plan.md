@@ -31,7 +31,7 @@ Working document for phase 0. Values marked "to confirm" are not applied or test
 | VMnet11 | Host-only, 10.10.30.0/24 | Attack zone | no | off |
 | VMnet12 | Host-only, 10.10.10.0/24 | SOC link in solo mode (cable unplugged) | yes, 10.10.10.20 | off |
 
-VMnet1, VMnet2 and VMnet3 already exist on this laptop for other labs (EVE-NG, GNS3) and are left untouched, which is why the project uses VMnet10 to VMnet12.
+VMnet1, VMnet2 and VMnet3 are already used by other virtual machines on this laptop and are left untouched, which is why the project uses VMnet10 to VMnet12.
 
 Solo mode and cable mode: the Windows Ethernet adapter has no usable address when no cable is plugged in, so the host cannot reach OPNsense through the bridge while working alone. During solo work the first OPNsense adapter sits on VMnet12. For integration with laptop 1 it is switched to VMnet0, the VMnet12 host adapter is disabled and 10.10.10.20 moves to `Ethernet`. Nothing changes inside OPNsense.
 

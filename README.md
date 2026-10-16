@@ -27,7 +27,7 @@ The full design is in [docs/SOC_IA_PROJECT_BRIEF.md](docs/SOC_IA_PROJECT_BRIEF.m
 | Phase | Content | Status |
 |---|---|---|
 | 0 | VMs, three network zones, OPNsense, cable link | Laptop 2 done; cable link (step 0.7) pending |
-| 1 | Detection base (Wazuh, agents, Sysmon, Suricata) | Not started |
+| 1 | Detection base (Wazuh, agents, Sysmon, Suricata) | In progress |
 | 2 | Enrichment and orchestration (MISP, Shuffle, DFIR-IRIS) | Not started |
 | 3 | AI engine | Not started |
 | 4 | Response and supervision | Not started |
