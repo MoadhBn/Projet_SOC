@@ -148,6 +148,15 @@ Additional log sources, kept in the repository (`wazuh/agents/`):
 | `target-linux-localfile.xml` | Apache access and error logs (`log_format` `apache`) | UC-03 |
 | `target-win-localfile.xml` | Sysmon event channel `Microsoft-Windows-Sysmon/Operational` (`log_format` `eventchannel`) | UC-02, UC-05 |
 
+On Linux the agent installer had already added both Apache logs to `ossec.conf` because Apache was installed before the agent, so nothing was added by hand. On Windows the Sysmon block was added to `C:\Program Files (x86)\ossec-agent\ossec.conf`; the file can only be edited from an administrator session (Notepad started from an administrator PowerShell).
+
+Verification in the agents' own logs (no manager needed):
+
+| Target | Log line | Meaning |
+|---|---|---|
+| target-linux | `wazuh-logcollector: INFO: (1950): Analyzing file: '/var/log/apache2/access.log'` (and `error.log`) | Apache logs are collected |
+| target-win | `wazuh-agent: INFO: (1951): Analyzing event log: 'Microsoft-Windows-Sysmon/Operational'` | Sysmon events are collected |
+
 ## 6. Problems met and how they were handled
 
 | Problem | Handling |

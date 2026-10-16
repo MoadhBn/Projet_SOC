@@ -1,7 +1,9 @@
 <!--
   Extra log sources for the Linux target (target-linux, 10.10.20.20).
-  Paste inside the <ossec_config> block of /var/ossec/etc/ossec.conf,
-  only for the entries the installer did not already add, then:
+  Reference only: the 4.14.9 installer added both entries to
+  /var/ossec/etc/ossec.conf by itself because Apache was already installed.
+  On a machine where they are missing, paste them inside the <ossec_config>
+  block, then:
     systemctl restart wazuh-agent
   Use cases: UC-03 web exploitation (Apache logs).
   Authentication logs (UC-01 SSH brute force) are collected by the default configuration.
