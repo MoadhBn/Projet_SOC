@@ -26,8 +26,8 @@ The full design is in [docs/SOC_IA_PROJECT_BRIEF.md](docs/SOC_IA_PROJECT_BRIEF.m
 
 | Phase | Content | Status |
 |---|---|---|
-| 0 | VMs, three network zones, OPNsense, cable link | Laptop 2 done; cable link (step 0.7) pending |
-| 1 | Detection base (Wazuh, agents, Sysmon, Suricata) | Laptop 2 done; enrolment and use cases need laptop 1 |
+| 0 | VMs, three network zones, OPNsense, cable link | Both laptops done; cable link (step 0.7) pending |
+| 1 | Detection base (Wazuh, agents, Sysmon, Suricata) | Laptop 2 done; Wazuh manager on laptop 1 in progress |
 | 2 | Enrichment and orchestration (MISP, Shuffle, DFIR-IRIS) | Not started |
 | 3 | AI engine | Started early: model comparison, API skeleton |
 | 4 | Response and supervision | Not started |

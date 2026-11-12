@@ -5,7 +5,7 @@ Team: Mohamed Nadhir Abidi, Mohamed Amine Rhimi, Moadh Ben Naceur. Supervisor: M
 
 This file is the entry point for anyone joining the work: what the project is, where it stands, what each laptop still has to do, and the rules the team follows. Details live in the phase journals (`docs/phases/`) and in the brief (`docs/SOC_IA_PROJECT_BRIEF.md`), which remains the source of truth for every design decision.
 
-Last updated: 12 November 2026, from the laptop 2 journals. Work done on laptop 1 is not recorded in the repository yet.
+Last updated: 12 November 2026, from the journals of both laptops.
 
 ## 1. The project in short
 
@@ -43,8 +43,8 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 | Phase | Content | Laptop 1 | Laptop 2 | Milestone |
 |---|---|---|---|---|
-| 0 | VMs, zones, firewall, cable link | not recorded | **done** except step 0.7 (cable) | |
-| 1 | Detection base | not recorded | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
+| 0 | VMs, zones, firewall, cable link | **done** except step 0.7 (cable) | **done** except step 0.7 (cable) | |
+| 1 | Detection base | next: Docker and Wazuh 4.14.9 | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
 | 2 | MISP, Shuffle, DFIR-IRIS, first playbook | not recorded | nothing to do yet | |
 | 3 | AI engine | n/a | **started early**: models compared, API skeleton with the score formula | |
 | 4 | Response, cancel link, unblock, dashboards | not started | not started | |
@@ -55,6 +55,10 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 - **Phase 0** (`docs/phases/phase-0-laptop2.md`): three VMware networks, OPNsense 26.7.7 with four interfaces and the rules above, Linux target (Ubuntu 26.04.1, SSH), Windows target (Windows 10 Pro 1903), Kali (text mode). Every allowed and blocked path tested, blocks visible in the firewall log, snapshots taken, scrubbed firewall configuration in the repository.
 - **Phase 1** (`docs/phases/phase-1-laptop2.md`): Suricata in detection mode on the TARGETS and ATTACK interfaces with selected Emerging Threats Open rules (alerts confirmed); Sysmon on the Windows target (encoded PowerShell recorded); DVWA on the Linux target (requests visible in Apache's log); Wazuh agents 4.14.9 installed on both targets, reading Sysmon and Apache logs, waiting for the manager; Wazuh agent plugin on OPNsense (agent 4.14.8), installed and disabled.
 - **Phase 3, early** (`docs/phases/phase-3-laptop2.md`): Ollama on the host; first comparison of Llama 3.2 3B, Qwen2.5 3B and Gemma 3 4B (Gemma provisional favourite for French quality); analysis API skeleton (`ai-engine/`) with the score formula and 11 passing tests.
+
+### Done on laptop 1
+
+- **Phase 0** (`docs/phases/phase-0-laptop1.md`): VMware networks (VMnet0 bridged to the Realtek Ethernet card, VMnet12 host-only for solo mode, host 10.10.10.1); soc VM (4 vCPU, 8 GB for now, 4 GB swap, 85 GB disk) with Ubuntu 24.04.5 LTS in text mode, `ens33` 10.10.10.10/24 without gateway, persistent route 10.10.20.0/24 via 10.10.10.254, NAT for downloads, SSH from the host; snapshot `phase0-baseline`.
 
 ### Points of the brief's section 12 (to verify during the build)
 
@@ -77,6 +81,10 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | SOC link on the cable | VMnet12 while working apart, cable on integration day | The team builds in different places |
 | Vulnerable web app not chosen | DVWA | Lighter than Juice Shop, attacks visible in Apache logs |
 | Model: Llama 3.2 3B or Qwen2.5 3B | Gemma 3 4B provisional favourite (the brief's 4B fallback) | Much better French in the first test; to confirm |
+| soc VM on Ubuntu Server | Ubuntu Desktop 24.04 installed minimal, graphical session disabled at boot, printing disabled | Server image could not be downloaded; equivalent result (605 MiB used at rest) |
+| soc VM 11 GB | 8 GB during phase 1 | Only Wazuh runs in phase 1; final size set in phase 2 from measured use |
+| soc VM disk (not fixed; 100 GB planned) | 85 GB | Enough for phase 1; can be extended |
+| SOC link on the cable (laptop 1) | VMnet12 while working apart, cable on integration day | Same arrangement as laptop 2 |
 
 ### Decisions still open
 
@@ -89,12 +97,12 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 ### Before the joint session
 
-1. **soc VM**: Ubuntu Server, 11 GB RAM, 4 vCPU, plus 4 GB of swap inside the VM (brief).
-2. **Network of the soc VM**:
+1. **soc VM**: done (phase 0 journal). Ubuntu 24.04.5 in text mode, 4 vCPU, 8 GB for phase 1, 4 GB swap.
+2. **Network of the soc VM**: done in solo mode (VMnet12); VMnet0 already bound to Ethernet for the cable.
    - one **bridged** adapter on VMnet0, with VMnet0 bound explicitly to laptop 1's **Ethernet** card in the Virtual Network Editor (not "Automatic", which may pick Wi-Fi): address **10.10.10.10/24, no gateway** on that adapter;
    - one **NAT** adapter for downloads (default route);
    - a **persistent static route**: `10.10.20.0/24 via 10.10.10.254`; without it Wazuh cannot answer the agents on the targets.
-3. **Laptop 1 host**: Ethernet card set to **10.10.10.1/24, no gateway** (Wi-Fi keeps the internet).
+3. **Laptop 1 host**: 10.10.10.1/24 on VMnet12 for now; moves to the Ethernet card (no gateway) on integration day.
 4. **Wazuh 4.14.9**, official Docker single-node deployment, pinned version: `git clone https://github.com/wazuh/wazuh-docker.git -b v4.14.9`. Agents must never be newer than the manager: the targets run 4.14.9 and the firewall 4.14.8, so the manager must be 4.14.9. Do not use Wazuh 5.0 (pre-release).
    - set `vm.max_map_count=262144` on the soc VM (required by the indexer);
    - limit the indexer's Java heap to 1 GB (brief); Wazuh's official page asks for 8 GB of RAM for the single-node stack, more than the brief allows, so **measure** real use with `docker stats` and record it (open point of the brief);
