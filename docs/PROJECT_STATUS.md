@@ -5,7 +5,7 @@ Team: Mohamed Nadhir Abidi, Mohamed Amine Rhimi, Moadh Ben Naceur. Supervisor: M
 
 This file is the entry point for anyone joining the work: what the project is, where it stands, what each laptop still has to do, and the rules the team follows. Details live in the phase journals (`docs/phases/`) and in the brief (`docs/SOC_IA_PROJECT_BRIEF.md`), which remains the source of truth for every design decision.
 
-Last updated: 12 November 2026, from the journals of both laptops.
+Last updated: 13 November 2026, from the journals of both laptops.
 
 ## 1. The project in short
 
@@ -44,7 +44,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | Phase | Content | Laptop 1 | Laptop 2 | Milestone |
 |---|---|---|---|---|
 | 0 | VMs, zones, firewall, cable link | **done** except step 0.7 (cable) | **done** except step 0.7 (cable) | |
-| 1 | Detection base | next: Docker and Wazuh 4.14.9 | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
+| 1 | Detection base | **done** on its side: Wazuh 4.14.9 running; enrolment and use cases need the joint session | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
 | 2 | MISP, Shuffle, DFIR-IRIS, first playbook | not recorded | nothing to do yet | |
 | 3 | AI engine | n/a | **started early**: models compared, API skeleton with the score formula | |
 | 4 | Response, cancel link, unblock, dashboards | not started | not started | |
@@ -59,6 +59,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 ### Done on laptop 1
 
 - **Phase 0** (`docs/phases/phase-0-laptop1.md`): VMware networks (VMnet0 bridged to the Realtek Ethernet card, VMnet12 host-only for solo mode, host 10.10.10.1); soc VM (4 vCPU, 8 GB for now, 4 GB swap, 85 GB disk) with Ubuntu 24.04.5 LTS in text mode, `ens33` 10.10.10.10/24 without gateway, persistent route 10.10.20.0/24 via 10.10.10.254, NAT for downloads, SSH from the host; snapshot `phase0-baseline`.
+- **Phase 1** (`docs/phases/phase-1-laptop1.md`): Docker Engine 29.9.3 and Compose v5.7.1 from Docker's repository; Wazuh 4.14.9 official single-node deployment (manager, indexer with 1 GB heap, dashboard on https://10.10.10.10); default passwords of `admin`, `kibanaserver` and `wazuh-wui` changed following the official procedure, passwords kept in a `.env` outside the repository; Compose file without secrets in `infra/laptop1-soc/wazuh/`. Ready for the agents: ports 1514 and 1515 published on 10.10.10.10.
 
 ### Points of the brief's section 12 (to verify during the build)
 
@@ -69,7 +70,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | OPNsense API calls to add and remove a blocked address | **Half answered**: add is `POST /api/firewall/alias_util/add/SOC_BLOCKLIST`; delete to confirm in the API reference (phase 4). Also found: the plugin's active response `opnsense-fw` can block addresses, to compare in phase 4 |
 | Wazuh's integration towards a Shuffle webhook, alert level threshold | **Open** (phase 2, laptop 1) |
 | VMware bridging on the laptops' Ethernet cards | **Open** (step 0.7) |
-| Real memory use on laptop 1 | **Open** (laptop 1) |
+| Real memory use on laptop 1 | **First answer**: Wazuh alone uses about 2.2 GiB without agents (indexer 1.42 GiB, manager 562 MiB, dashboard 197 MiB), against 3.5 GB estimated; VM at 2.8 GiB used of 8 GB. To measure again with agents, then with MISP, Shuffle and DFIR-IRIS |
 | French quality of the 3B models | **First answer**: usable but imperfect; Gemma 3 4B clearly better; confirm with the real prompt on 20 to 30 lab alerts |
 
 ### Deviations from the brief so far
@@ -103,12 +104,12 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
    - one **NAT** adapter for downloads (default route);
    - a **persistent static route**: `10.10.20.0/24 via 10.10.10.254`; without it Wazuh cannot answer the agents on the targets.
 3. **Laptop 1 host**: 10.10.10.1/24 on VMnet12 for now; moves to the Ethernet card (no gateway) on integration day.
-4. **Wazuh 4.14.9**, official Docker single-node deployment, pinned version: `git clone https://github.com/wazuh/wazuh-docker.git -b v4.14.9`. Agents must never be newer than the manager: the targets run 4.14.9 and the firewall 4.14.8, so the manager must be 4.14.9. Do not use Wazuh 5.0 (pre-release).
+4. **Wazuh 4.14.9**: done (phase 1 journal). Original instructions kept for reference: official Docker single-node deployment, pinned version: `git clone https://github.com/wazuh/wazuh-docker.git -b v4.14.9`. Agents must never be newer than the manager: the targets run 4.14.9 and the firewall 4.14.8, so the manager must be 4.14.9. Do not use Wazuh 5.0 (pre-release).
    - set `vm.max_map_count=262144` on the soc VM (required by the indexer);
    - limit the indexer's Java heap to 1 GB (brief); Wazuh's official page asks for 8 GB of RAM for the single-node stack, more than the brief allows, so **measure** real use with `docker stats` and record it (open point of the brief);
    - change the default dashboard password at first login;
    - Wazuh, MISP and DFIR-IRIS all default to port 443: give each its own port.
-5. **Record it**: `docs/phases/phase-0-laptop1.md` and `docs/phases/phase-1-laptop1.md`, Docker Compose files in `infra/laptop1-soc/` (no secrets), following the rules below.
+5. **Record it**: done (`docs/phases/phase-0-laptop1.md`, `docs/phases/phase-1-laptop1.md`, `infra/laptop1-soc/wazuh/`).
 
 ### Joint session (both laptops and the cable, or the VPN)
 
