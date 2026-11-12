@@ -1,6 +1,6 @@
-# Phase 1: detection base
+# Phase 1: detection base (laptop 2)
 
-Status: in progress. Started 16 October 2026.
+Status: laptop 2 side done on 16 October 2026 (steps 1.1 to 1.5b). Remaining: enrolment of the agents and first use cases (steps 1.5 and 1.6), which need the Wazuh manager on laptop 1.
 
 This file is the journal of phase 1.
 

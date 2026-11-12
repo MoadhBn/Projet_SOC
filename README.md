@@ -7,13 +7,13 @@ Projet académique, Tek-Up University, 2026-2027.
 
 A lab SOC on two laptops where the whole chain is automatic: collection, detection, enrichment, scoring, response, AI explanation and incident creation. Everything is open source and the AI runs locally.
 
-The full design is in [docs/SOC_IA_PROJECT_BRIEF.md](docs/SOC_IA_PROJECT_BRIEF.md).
+The full design is in [docs/SOC_IA_PROJECT_BRIEF.md](docs/SOC_IA_PROJECT_BRIEF.md). Current progress and the work left on each laptop are in [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md); the working rules, also used by AI assistants, are in [CLAUDE.md](CLAUDE.md).
 
 ## Layout
 
 | Folder | Content |
 |---|---|
-| `docs/` | Project brief, report sources, diagrams |
+| `docs/` | Project brief, project status, phase journals (`docs/phases/`), report sources, diagrams |
 | `infra/laptop1-soc/` | Docker Compose files for Wazuh, Shuffle, MISP, DFIR-IRIS |
 | `infra/laptop2-lab/` | Network plan, VMware and OPNsense settings, VM notes |
 | `wazuh/` | Custom rules, agent configuration, Sysmon configuration |
@@ -27,9 +27,9 @@ The full design is in [docs/SOC_IA_PROJECT_BRIEF.md](docs/SOC_IA_PROJECT_BRIEF.m
 | Phase | Content | Status |
 |---|---|---|
 | 0 | VMs, three network zones, OPNsense, cable link | Laptop 2 done; cable link (step 0.7) pending |
-| 1 | Detection base (Wazuh, agents, Sysmon, Suricata) | In progress |
+| 1 | Detection base (Wazuh, agents, Sysmon, Suricata) | Laptop 2 done; enrolment and use cases need laptop 1 |
 | 2 | Enrichment and orchestration (MISP, Shuffle, DFIR-IRIS) | Not started |
-| 3 | AI engine | Not started |
+| 3 | AI engine | Started early: model comparison, API skeleton |
 | 4 | Response and supervision | Not started |
 | 5 | Validation and report | Not started |
 

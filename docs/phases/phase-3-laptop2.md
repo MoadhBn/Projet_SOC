@@ -1,4 +1,4 @@
-# Phase 3: AI engine
+# Phase 3: AI engine (laptop 2)
 
 Status: early work started on 16 October 2026, while phase 1 waits for laptop 1. The phase itself starts after phase 2.
 
