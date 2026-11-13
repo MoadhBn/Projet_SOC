@@ -34,6 +34,24 @@ sudo docker exec single-node-wazuh.indexer-1 bash -c 'export JAVA_HOME=/usr/shar
 
 Source of the password procedure: "Changing the default password of Wazuh users", Wazuh documentation 4.14 (`wazuh/wazuh-documentation`, `source/deployment-options/docker/changing-default-password.rst`).
 
+## Integration with Shuffle
+
+The manager sends alerts to a Shuffle webhook with Wazuh's built-in `shuffle` integration (Integrator module). The block below is in `config/wazuh_cluster/wazuh_manager.conf` on the VM, right after the first `<ossec_config>` line. The real webhook ID stays on the VM: anyone who knows it can start the workflow.
+
+```xml
+  <integration>
+    <name>shuffle</name>
+    <hook_url>http://10.10.10.10:5001/api/v1/hooks/webhook_<ID></hook_url>
+    <level>3</level>
+    <alert_format>json</alert_format>
+  </integration>
+```
+
+- Level 3 is provisional (test with the manager's own alerts); the final threshold is set with the use cases.
+- HTTP to the Shuffle backend (port 5001): the traffic stays inside the VM; HTTPS on 3443 uses a self-signed certificate.
+- **Apply a change of `wazuh_manager.conf` with `sudo docker compose up -d --force-recreate wazuh.manager`.** A plain `docker compose restart` did not copy the mounted file into `/var/ossec/etc/ossec.conf`; a recreated container does (the data stays in the volumes).
+- Shuffle receives the alert reformatted by `/var/ossec/integrations/shuffle.py`: `severity` (1 to 3), `title`, `text`, `rule_id`, `timestamp`, `id`, and the complete alert under `all_fields`.
+
 ## Ports published by the VM
 
 | Port | Service | Used by |
