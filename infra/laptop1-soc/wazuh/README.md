@@ -50,6 +50,7 @@ The manager sends alerts to a Shuffle webhook with Wazuh's built-in `shuffle` in
 - Level 3 is provisional (test with the manager's own alerts); the final threshold is set with the use cases.
 - HTTP to the Shuffle backend (port 5001): the traffic stays inside the VM; HTTPS on 3443 uses a self-signed certificate.
 - **Apply a change of `wazuh_manager.conf` with `sudo docker compose up -d --force-recreate wazuh.manager`.** A plain `docker compose restart` did not copy the mounted file into `/var/ossec/etc/ossec.conf`; a recreated container does (the data stays in the volumes).
+- Vulnerability detection is disabled (`<vulnerability-detection><enabled>no</enabled>`): with no agent it downloaded about 1 GB and wrote tens of GB to disk per day, and it is not used by the use cases. Set it back to `yes` to enable it.
 - Shuffle receives the alert reformatted by `/var/ossec/integrations/shuffle.py`: `severity` (1 to 3), `title`, `text`, `rule_id`, `timestamp`, `id`, and the complete alert under `all_fields`.
 
 ## Ports published by the VM

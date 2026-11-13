@@ -45,7 +45,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 |---|---|---|---|---|
 | 0 | VMs, zones, firewall, cable link | **done** except step 0.7 (cable) | **done** except step 0.7 (cable) | |
 | 1 | Detection base | **done** on its side: Wazuh 4.14.9 running; enrolment and use cases need the joint session | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
-| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **started**: Shuffle 2.3.0 running, Wazuh alerts reach it; DFIR-IRIS, playbook and MISP to do | nothing to do yet | |
+| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **mostly done**: Shuffle 2.3.0 and DFIR-IRIS 2.4.29 running; a Wazuh alert becomes an IRIS alert automatically. MISP to do | nothing to do yet | |
 | 3 | AI engine | n/a | **started early**: models compared, API skeleton with the score formula | |
 | 4 | Response, cancel link, unblock, dashboards | not started | not started | |
 | 5 | Six scenarios, measurements, report | not started | not started | Report 3 days before séance 7 |
@@ -60,7 +60,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 - **Phase 0** (`docs/phases/phase-0-laptop1.md`): VMware networks (VMnet0 bridged to the Realtek Ethernet card, VMnet12 host-only for solo mode, host 10.10.10.1); soc VM (4 vCPU, 8 GB for now, 4 GB swap, 85 GB disk) with Ubuntu 24.04.5 LTS in text mode, `ens33` 10.10.10.10/24 without gateway, persistent route 10.10.20.0/24 via 10.10.10.254, NAT for downloads, SSH from the host; snapshot `phase0-baseline`.
 - **Phase 1** (`docs/phases/phase-1-laptop1.md`): Docker Engine 29.9.3 and Compose v5.7.1 from Docker's repository; Wazuh 4.14.9 official single-node deployment (manager, indexer with 1 GB heap, dashboard on https://10.10.10.10); default passwords of `admin`, `kibanaserver` and `wazuh-wui` changed following the official procedure, passwords kept in a `.env` outside the repository; Compose file without secrets in `infra/laptop1-soc/wazuh/`. Ready for the agents: ports 1514 and 1515 published on 10.10.10.10.
-- **Phase 2, started** (`docs/phases/phase-2-laptop1.md`): VM at 10 GB after measurement; Shuffle 2.3.0 (images pinned, OpenSearch heap 1 GB on 127.0.0.1:9201, Orborus without Swarm and without Tenzir pipelines) next to Wazuh; Wazuh's built-in `shuffle` integration sends alerts to the workflow `Wazuh-Alerts` (level 3 for now). Wazuh and Shuffle together: about 4.5 GiB in the VM.
+- **Phase 2, started** (`docs/phases/phase-2-laptop1.md`): VM at 10 GB after measurement; Shuffle 2.3.0 (images pinned, OpenSearch heap 1 GB on 127.0.0.1:9201, Orborus without Swarm and without Tenzir pipelines) next to Wazuh; Wazuh's built-in `shuffle` integration sends alerts to the workflow `Wazuh-Alerts` (level 3 for now). Wazuh and Shuffle together: about 4.5 GiB in the VM. DFIR-IRIS 2.4.29 on https://10.10.10.10:8443 (own certificate, secrets changed, about 1.0 GiB). First playbook: Wazuh alert, Shuffle, IRIS alert (`POST /alerts/add`), tested with a real Wazuh alert. Wazuh vulnerability detection disabled (heavy disk and network use, not in the use cases).
 
 ### Points of the brief's section 12 (to verify during the build)
 
@@ -71,7 +71,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | OPNsense API calls to add and remove a blocked address | **Half answered**: add is `POST /api/firewall/alias_util/add/SOC_BLOCKLIST`; delete to confirm in the API reference (phase 4). Also found: the plugin's active response `opnsense-fw` can block addresses, to compare in phase 4 |
 | Wazuh's integration towards a Shuffle webhook, alert level threshold | **Answered for the integration**: built-in `shuffle` integration of the Integrator module, alerts posted to `http://10.10.10.10:5001/api/v1/hooks/webhook_<id>` (inside the VM), full alert under `all_fields`. **Threshold open**: level 3 for the tests, final value with the use cases |
 | VMware bridging on the laptops' Ethernet cards | **Open** (step 0.7) |
-| Real memory use on laptop 1 | **Partly answered**: Wazuh about 2.2 to 2.3 GiB without agents (3.5 GB estimated), Shuffle about 2.2 GiB (2.5 GB estimated). A VM of 11 GB left the Windows host with 126 MB available once the guest cache was full, so the VM runs at 10 GB. DFIR-IRIS and MISP still to measure; whether all four tools fit at once is not known yet |
+| Real memory use on laptop 1 | **Partly answered**: Wazuh about 2.2 to 2.3 GiB without agents (3.5 GB estimated), Shuffle about 2.0 to 2.2 GiB (2.5 GB estimated), DFIR-IRIS about 1.0 GiB (1.5 GB estimated); the three together leave 4.4 GiB available in the VM. A VM of 11 GB left the Windows host with 126 MB available once the guest cache was full, so the VM runs at 10 GB. MISP still to measure; whether all four tools fit at once is not known yet |
 | French quality of the 3B models | **First answer**: usable but imperfect; Gemma 3 4B clearly better; confirm with the real prompt on 20 to 30 lab alerts |
 
 ### Deviations from the brief so far
@@ -90,6 +90,9 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | soc VM 11 GB | 10 GB | Measured: at 11 GB the host had 126 MB available once the VM cache was full |
 | Build order MISP, Shuffle, DFIR-IRIS | Shuffle, DFIR-IRIS, MISP | Riskiest and central tool first; testable alone with the manager's own alerts |
 | Wazuh to Shuffle over HTTPS (exchange 4) | HTTP to the Shuffle backend, port 5001, inside the VM | Self-signed certificate on 3443; to revisit |
+| DFIR-IRIS kept although the supervisor suggested TheHive | DFIR-IRIS 2.4.29 | TheHive 6 needs Cassandra and Elasticsearch (about 4 to 6 GB) and is no longer open source; TheHive is the documented fallback |
+| Incident created for retained alerts | Every alert sent to Shuffle becomes an IRIS alert; escalation to a case comes with the score (phase 3) | IRIS separates alerts and cases |
+| Wazuh defaults | Vulnerability detection disabled | Heavy disk and network use, not in the use cases |
 | Shuffle official compose | Swarm mode and Tenzir pipelines disabled, `shuffle-security` removed, OpenSearch on 127.0.0.1:9201 with 1 GB heap | Swarm failed on the VM; lighter; port 9200 used by Wazuh |
 
 ### Decisions still open
