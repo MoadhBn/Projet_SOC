@@ -5,7 +5,7 @@ Team: Mohamed Nadhir Abidi, Mohamed Amine Rhimi, Moadh Ben Naceur. Supervisor: M
 
 This file is the entry point for anyone joining the work: what the project is, where it stands, what each laptop still has to do, and the rules the team follows. Details live in the phase journals (`docs/phases/`) and in the brief (`docs/SOC_IA_PROJECT_BRIEF.md`), which remains the source of truth for every design decision.
 
-Last updated: 13 November 2026, from the journals of both laptops.
+Last updated: 25 November 2026, from the journals of both laptops.
 
 ## 1. The project in short
 

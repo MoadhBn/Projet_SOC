@@ -154,6 +154,22 @@ Verification (13 November 2026), only HTTP status codes are shown:
 | `diff` of `internal_users.yml` with the original | 2 lines changed (`admin`, `kibanaserver`) | No other user touched |
 | Dashboard login with the new `admin` password | Overview page, no API error | Dashboard reaches the indexer (`kibanaserver`) and the API (`wazuh-wui`) |
 
+#### Incident: `admin` password refused (found on 13 November 2026, fixed)
+
+Symptom: the dashboard refused `admin` with the password of `INDEXER_PASSWORD` in `.env`, and `curl -u admin https://localhost:9200` returned 401. The likely cause is that during pass 2 the hash of another password was pasted into the `admin:` block of `internal_users.yml` instead of the `kibanaserver:` block (the `diff` only counted two changed lines, not which ones). Consequence beyond the login: the manager uses the same password to send alerts to the indexer, so alerts could be missing from the dashboard; Shuffle and IRIS were not affected (the integration posts alerts directly).
+
+Fix, with the official procedure: `docker compose down`, new hash of the `.env` password, `admin:` block only, `docker compose up -d`, `securityadmin.sh` once port 9200 answered 401.
+
+| Test | Result |
+|---|---|
+| `admin` with the `.env` password | 200 |
+| Dashboard login as `admin` | Works |
+| Health check and full demonstration after a week powered off (20 November) | 12 containers up, alert rule 502 through Shuffle to IRIS |
+
+Because the password had been shown on screen during the troubleshooting, it was then replaced by a new one (same procedure, `INDEXER_PASSWORD` updated in `.env`). Check: the old password returns 401, the new one 200, `kibanaserver` 200.
+
+Lesson: after a password change, test every account (`admin`, `kibanaserver`, `wazuh-wui`) with `curl`, not only the one being changed.
+
 ### Step 1.6: configuration in the repository (done, 13 November 2026)
 
 `infra/laptop1-soc/wazuh/`:
@@ -177,6 +193,7 @@ Kept on the VM only: `.env`, `internal_users.yml` (hashes), `wazuh.yml` (API pas
 | SSH sessions dropped, which killed the pull running in them | Pull run as a transient systemd service (`systemd-run`), independent of SSH; SSH with `ServerAliveInterval=30` |
 | `securityadmin.sh`: "no OpenSearch running on localhost:9200" | Run too early after the start; run again once port 9200 answers 401 |
 | Hash generated from the wrong password during pass 2 | Generated again before it was applied; nothing was loaded in between |
+| `admin` password refused afterwards (hash in the wrong block) | New `admin` hash applied with `securityadmin.sh`; password then replaced because it had been shown on screen |
 
 ## 6. Résumé pour le rapport
 
