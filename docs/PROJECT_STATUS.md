@@ -5,12 +5,12 @@ Team: Mohamed Nadhir Abidi, Mohamed Amine Rhimi, Moadh Ben Naceur. Supervisor: M
 
 This file is the entry point for anyone joining the work: what the project is, where it stands, what each laptop still has to do, and the rules the team follows. Details live in the phase journals (`docs/phases/`) and in the brief (`docs/SOC_IA_PROJECT_BRIEF.md`), which remains the source of truth for every design decision.
 
-Last updated: 25 November 2026, from the journals of both laptops.
+Last updated: 27 November 2026, from the journals of both laptops.
 
 ## 1. The project in short
 
 - A lab SOC on two 16 GB laptops linked by an Ethernet cable, where the whole chain is automatic: collect, detect, group and enrich, score, respond, explain with a local AI, open an incident, notify.
-- Laptop 1 (the SOC) runs one Ubuntu Server VM, "soc", with Wazuh, Shuffle, MISP and DFIR-IRIS in Docker.
+- Laptop 1 (the SOC) runs one Ubuntu VM without graphical session, "soc" (10 GB), with Wazuh, Shuffle, MISP and DFIR-IRIS in Docker.
 - Laptop 2 (the lab and the AI) runs the OPNsense firewall (with Suricata), a Windows 10 target, an Ubuntu target and a Kali attacker, plus the AI engine directly on Windows (Ollama and the analysis API).
 - A fixed formula decides the priority score; the language model only summarises, labels and justifies, and its label can only raise the score.
 - No human approval before a response: guardrails instead (temporary and reversible actions, protected list, cancel link, logs treated as untrusted input).
@@ -58,9 +58,9 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 ### Done on laptop 1
 
-- **Phase 0** (`docs/phases/phase-0-laptop1.md`): VMware networks (VMnet0 bridged to the Realtek Ethernet card, VMnet12 host-only for solo mode, host 10.10.10.1); soc VM (4 vCPU, 8 GB for now, 4 GB swap, 85 GB disk) with Ubuntu 24.04.5 LTS in text mode, `ens33` 10.10.10.10/24 without gateway, persistent route 10.10.20.0/24 via 10.10.10.254, NAT for downloads, SSH from the host; snapshot `phase0-baseline`.
+- **Phase 0** (`docs/phases/phase-0-laptop1.md`): VMware networks (VMnet0 bridged to the Realtek Ethernet card, VMnet12 host-only for solo mode, host 10.10.10.1); soc VM (4 vCPU, 8 GB in phase 1 and 10 GB from phase 2, 4 GB swap, 85 GB disk) with Ubuntu 24.04.5 LTS in text mode, `ens33` 10.10.10.10/24 without gateway, persistent route 10.10.20.0/24 via 10.10.10.254, NAT for downloads, SSH from the host; snapshot `phase0-baseline`.
 - **Phase 1** (`docs/phases/phase-1-laptop1.md`): Docker Engine 29.9.3 and Compose v5.7.1 from Docker's repository; Wazuh 4.14.9 official single-node deployment (manager, indexer with 1 GB heap, dashboard on https://10.10.10.10); default passwords of `admin`, `kibanaserver` and `wazuh-wui` changed following the official procedure, passwords kept in a `.env` outside the repository; Compose file without secrets in `infra/laptop1-soc/wazuh/`. Ready for the agents: ports 1514 and 1515 published on 10.10.10.10.
-- **Phase 2, started** (`docs/phases/phase-2-laptop1.md`): VM at 10 GB after measurement; Shuffle 2.3.0 (images pinned, OpenSearch heap 1 GB on 127.0.0.1:9201, Orborus without Swarm and without Tenzir pipelines) next to Wazuh; Wazuh's built-in `shuffle` integration sends alerts to the workflow `Wazuh-Alerts` (level 3 for now). Wazuh and Shuffle together: about 4.5 GiB in the VM. DFIR-IRIS 2.4.29 on https://10.10.10.10:8443 (own certificate, secrets changed, about 1.0 GiB). First playbook: Wazuh alert, Shuffle, IRIS alert (`POST /alerts/add`), tested with a real Wazuh alert. Wazuh vulnerability detection disabled (heavy disk and network use, not in the use cases).
+- **Phase 2, almost done** (`docs/phases/phase-2-laptop1.md`): VM at 10 GB after measurement; Shuffle 2.3.0 (images pinned, OpenSearch heap 1 GB on 127.0.0.1:9201, Orborus without Swarm and without Tenzir pipelines) next to Wazuh; Wazuh's built-in `shuffle` integration sends alerts to the workflow `Wazuh-Alerts` (level 3 for now). Wazuh and Shuffle together: about 4.5 GiB in the VM. DFIR-IRIS 2.4.29 on https://10.10.10.10:8443 (own certificate, secrets changed, about 1.0 GiB). First playbook: Wazuh alert, Shuffle, IRIS alert (`POST /alerts/add`), tested with a real Wazuh alert. Wazuh vulnerability detection disabled (heavy disk and network use, not in the use cases). MISP 2.5.52 on https://10.10.10.10:9443 (MariaDB buffer 256 MB, about 1.25 GiB) with test indicators for Kali (10.10.30.10) and malicious.test.lab, read-only API key; the playbook is now Wazuh alert, Shuffle, MISP lookup of the source address, IRIS alert with the MISP result (about 15 seconds end to end). The four tools together: about 5.9 GiB, 18 containers.
 
 ### Points of the brief's section 12 (to verify during the build)
 
@@ -84,8 +84,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | Vulnerable web app not chosen | DVWA | Lighter than Juice Shop, attacks visible in Apache logs |
 | Model: Llama 3.2 3B or Qwen2.5 3B | Gemma 3 4B provisional favourite (the brief's 4B fallback) | Much better French in the first test; to confirm |
 | soc VM on Ubuntu Server | Ubuntu Desktop 24.04 installed minimal, graphical session disabled at boot, printing disabled | Server image could not be downloaded; equivalent result (605 MiB used at rest) |
-| soc VM 11 GB | 8 GB during phase 1 | Only Wazuh runs in phase 1; final size set in phase 2 from measured use |
-| soc VM disk (not fixed; 100 GB planned) | 85 GB | Enough for phase 1; can be extended |
+| soc VM disk (not fixed; 100 GB planned) | 85 GB | 40 GB used with the four tools (11 GB of it left by the disabled Wazuh vulnerability detection, to be freed); can be extended |
 | SOC link on the cable (laptop 1) | VMnet12 while working apart, cable on integration day | Same arrangement as laptop 2 |
 | soc VM 11 GB | 10 GB | Measured: at 11 GB the host had 126 MB available once the VM cache was full |
 | Build order MISP, Shuffle, DFIR-IRIS | Shuffle, DFIR-IRIS, MISP | Riskiest and central tool first; testable alone with the manager's own alerts |
@@ -93,6 +92,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | DFIR-IRIS kept although the supervisor suggested TheHive | DFIR-IRIS 2.4.29 | TheHive 6 needs Cassandra and Elasticsearch (about 4 to 6 GB) and is no longer open source; TheHive is the documented fallback |
 | Incident created for retained alerts | Every alert sent to Shuffle becomes an IRIS alert; escalation to a case comes with the score (phase 3) | IRIS separates alerts and cases |
 | Wazuh defaults | Vulnerability detection disabled | Heavy disk and network use, not in the use cases |
+| Playbook with branches on conditions | Single chain; every alert looked up in MISP, a missing source address replaced by `none` | A Shuffle 2.3.0 branch condition did not stop its branch; the single chain cannot produce a false MISP match |
 | Shuffle official compose | Swarm mode and Tenzir pipelines disabled, `shuffle-security` removed, OpenSearch on 127.0.0.1:9201 with 1 GB heap | Swarm failed on the VM; lighter; port 9200 used by Wazuh |
 
 ### Decisions still open
@@ -106,27 +106,28 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 ### Before the joint session
 
-1. **soc VM**: done (phase 0 journal). Ubuntu 24.04.5 in text mode, 4 vCPU, 8 GB for phase 1, 4 GB swap.
+1. **soc VM**: done (phase 0 journal). Ubuntu 24.04.5 in text mode, 4 vCPU, 10 GB (see phase 2), 4 GB swap.
 2. **Network of the soc VM**: done in solo mode (VMnet12); VMnet0 already bound to Ethernet for the cable.
    - one **bridged** adapter on VMnet0, with VMnet0 bound explicitly to laptop 1's **Ethernet** card in the Virtual Network Editor (not "Automatic", which may pick Wi-Fi): address **10.10.10.10/24, no gateway** on that adapter;
    - one **NAT** adapter for downloads (default route);
    - a **persistent static route**: `10.10.20.0/24 via 10.10.10.254`; without it Wazuh cannot answer the agents on the targets.
 3. **Laptop 1 host**: 10.10.10.1/24 on VMnet12 for now; moves to the Ethernet card (no gateway) on integration day.
 4. **Wazuh 4.14.9**: done (phase 1 journal). Original instructions kept for reference: official Docker single-node deployment, pinned version: `git clone https://github.com/wazuh/wazuh-docker.git -b v4.14.9`. Agents must never be newer than the manager: the targets run 4.14.9 and the firewall 4.14.8, so the manager must be 4.14.9. Do not use Wazuh 5.0 (pre-release).
-   - set `vm.max_map_count=262144` on the soc VM (required by the indexer);
-   - limit the indexer's Java heap to 1 GB (brief); Wazuh's official page asks for 8 GB of RAM for the single-node stack, more than the brief allows, so **measure** real use with `docker stats` and record it (open point of the brief);
-   - change the default dashboard password at first login;
-   - Wazuh, MISP and DFIR-IRIS all default to port 443: give each its own port.
+   - `vm.max_map_count`: already 1048576 in Ubuntu 24.04 (at least 262144 required);
+   - indexer Java heap 1 GB (official file); memory measured (see the open points above);
+   - default passwords of `admin`, `kibanaserver` and `wazuh-wui` changed with the official procedure;
+   - one port per tool: Wazuh 443, Shuffle 3443 (webhooks on 5001), DFIR-IRIS 8443, MISP 9443.
 5. **Record it**: done (`docs/phases/phase-0-laptop1.md`, `docs/phases/phase-1-laptop1.md`, `infra/laptop1-soc/wazuh/`).
 
 ### Joint session (both laptops and the cable, or the VPN)
 
 | Step | Action | Check |
 |---|---|---|
-| 0.7 | Cable between the laptops; on laptop 2, firewall adapter 1 to VMnet0 (bridged, bound to Ethernet), VMnet12 host adapter disabled, 10.10.10.20 moved to laptop 2's Ethernet card | Laptop 2 host and OPNsense ping 10.10.10.1 and 10.10.10.10; the soc VM pings 10.10.10.254 and, through its route, 10.10.20.20 |
+| Before | Laptop 1: raise the Wazuh to Shuffle level threshold (3 is for tests only) | `grep -A5 "<integration>"` in the manager configuration |
+| 0.7 | Cable between the laptops. Laptop 1: soc VM adapter 1 from VMnet12 to VMnet0 (bridged, bound to Ethernet), 10.10.10.1 moved from the VMnet12 host adapter to the Ethernet card (no gateway), VMnet12 host adapter disabled. Laptop 2: firewall adapter 1 to VMnet0, VMnet12 host adapter disabled, 10.10.10.20 moved to the Ethernet card | Laptop 2 host and OPNsense ping 10.10.10.1 and 10.10.10.10; the soc VM pings 10.10.10.254 and, through its route, 10.10.20.20 |
 | 1.5 | Agents enrol: targets automatically (already pointed at 10.10.10.10); OPNsense plugin enabled with manager 10.10.10.10 and "Intrusion detection events" ticked | Three agents active in the Wazuh dashboard; Suricata alerts visible in Wazuh |
 | 1.6 | First use cases: SSH brute force (UC-01), encoded PowerShell (UC-02), port scan (UC-04), from Kali or on the Windows target | An alert for each in Wazuh, with its ATT&CK technique |
-| - | Windows firewall on laptop 2 allows the soc VM to reach the analysis API port (needed from phase 2 on) | Shuffle can call `http://10.10.10.20:8000/health` |
+| - | Windows firewall on laptop 2 allows the soc VM to reach the analysis API port (needed for phase 3) | Shuffle can call `http://10.10.10.20:8000/health` |
 
 ### Phase 2 (laptop 1): next steps, in order (state on 25 November 2026)
 
@@ -151,7 +152,6 @@ Details in `docs/phases/phase-2-laptop1.md`; configuration in `infra/laptop1-soc
 
 | Path | Content |
 |---|---|
-| `CLAUDE.md` | Working rules for AI assistants on this repository (also usable as a prompt) |
 | `docs/SOC_IA_PROJECT_BRIEF.md` | Source of truth: decisions, estimates, open points |
 | `docs/PROJECT_STATUS.md` | This file |
 | `docs/phases/phase-N-laptopX.md` | One journal per phase and per laptop |
@@ -165,7 +165,7 @@ Details in `docs/phases/phase-2-laptop1.md`; configuration in `infra/laptop1-soc
 
 ## 7. Rules the team follows
 
-Summary; the full list, written for AI assistants, is in `CLAUDE.md`.
+The detailed rules file was removed from the repository on 13 November 2026; the rules below still apply.
 
 - **The brief is the source of truth.** Decisions in it are not reopened unless something makes them impossible; then the problem and options are written down for the team.
 - **One phase at a time, one step at a time.** Each step says what is done and why, gives the exact commands, and is verified before moving on.

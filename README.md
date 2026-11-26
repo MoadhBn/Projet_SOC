@@ -7,7 +7,7 @@ Projet académique, Tek-Up University, 2026-2027.
 
 A lab SOC on two laptops where the whole chain is automatic: collection, detection, enrichment, scoring, response, AI explanation and incident creation. Everything is open source and the AI runs locally.
 
-The full design is in [docs/SOC_IA_PROJECT_BRIEF.md](docs/SOC_IA_PROJECT_BRIEF.md). Current progress and the work left on each laptop are in [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md); the working rules, also used by AI assistants, are in [CLAUDE.md](CLAUDE.md).
+The full design is in [docs/SOC_IA_PROJECT_BRIEF.md](docs/SOC_IA_PROJECT_BRIEF.md). Current progress and the work left on each laptop are in [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md), including the working rules of the team.
 
 ## Layout
 

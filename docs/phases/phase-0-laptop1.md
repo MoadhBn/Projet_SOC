@@ -112,7 +112,7 @@ Created with the custom wizard and "I will install the operating system later", 
 |---|---|---|
 | Guest OS | Ubuntu 64-bit | |
 | vCPU | 1 socket, 4 cores; nested virtualization off | Brief: 4 vCPU; Docker containers do not need VT-x inside the VM |
-| Memory | 8192 MB (temporary) | Phase 1 runs only Wazuh (official minimum 4 GB, 6 GB safer); raised for phase 2 from measured use, up to the brief's 11 GB |
+| Memory | 8192 MB (temporary) | Phase 1 runs only Wazuh (official minimum 4 GB, 6 GB safer); raised for phase 2 from measured use. Later: 11 GB, then 10 GB (see `phase-2-laptop1.md`, step 2.0) |
 | Disk | 85 GB, single file, grows on demand (100 GB was planned) | Wazuh asks 50 GB minimum; MISP, Shuffle and DFIR-IRIS come on top (estimate); can be extended later without reinstalling |
 | Adapter 1 | Custom, VMnet12 (solo mode; VMnet0 in cable mode) | SOC link |
 | Adapter 2 | NAT | Downloads |
