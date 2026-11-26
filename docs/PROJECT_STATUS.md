@@ -45,7 +45,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 |---|---|---|---|---|
 | 0 | VMs, zones, firewall, cable link | **done** except step 0.7 (cable) | **done** except step 0.7 (cable) | |
 | 1 | Detection base | **done** on its side: Wazuh 4.14.9 running; enrolment and use cases need the joint session | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
-| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **mostly done**: Shuffle 2.3.0, DFIR-IRIS 2.4.29 and MISP 2.5.52 running; a Wazuh alert becomes an IRIS alert automatically. MISP test indicators, MISP lookup in the playbook and playbook export to do | nothing to do yet | |
+| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **almost done**: Shuffle 2.3.0, DFIR-IRIS 2.4.29 and MISP 2.5.52 running; every Wazuh alert is looked up in MISP and becomes an IRIS alert automatically. Playbook export to do | nothing to do yet | |
 | 3 | AI engine | n/a | **started early**: models compared, API skeleton with the score formula | |
 | 4 | Response, cancel link, unblock, dashboards | not started | not started | |
 | 5 | Six scenarios, measurements, report | not started | not started | Report 3 days before séance 7 |
@@ -132,8 +132,8 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 Done: Shuffle, Wazuh integration, DFIR-IRIS, first playbook (Wazuh alert to IRIS alert), MISP installed and measured. Next:
 
-1. MISP test indicators: event "SOC lab - test indicators (T-05, UC-08)" with `ip-src` and `ip-dst` 10.10.30.10 and `domain` malicious.test.lab (for IDS); read-only API key; check `POST /attributes/restSearch` (10.10.30.10 found, 10.10.20.20 not found).
-2. MISP lookup in the Shuffle workflow, result added to the IRIS alert.
+1. Done (26 November): MISP test indicators (event 1: `ip-src` and `ip-dst` 10.10.30.10, `domain` malicious.test.lab), read-only API key, `restSearch` checked.
+2. Done (26 November): every Wazuh alert is looked up in MISP (source address, `none` when missing) and reaches IRIS with the result; about 15 seconds from webhook to IRIS alert.
 3. Export the workflow to `shuffle/` without the IRIS key, the MISP key or the webhook URL.
 4. Maintenance: free the 11 GB of `queue/vd` left by the disabled Wazuh vulnerability detection (manager stopped, then checks).
 5. Before the joint session: raise the Wazuh to Shuffle level threshold (3 is only for tests).

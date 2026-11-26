@@ -51,7 +51,7 @@ sudo chmod 400 ssl/key.pem
 
 ## API used by the playbook
 
-`POST /attributes/restSearch` with header `Authorization: <key>` (the key itself, no `Bearer` prefix) and `{"returnFormat":"json","value":"<IP>"}`. The playbook uses a read-only key. Keys stay on the VM and in Shuffle, never in the repository.
+`POST /attributes/restSearch` with header `Authorization: <key>` (the key itself, no `Bearer` prefix) and `{"returnFormat":"json","value":"<IP>"}`. The playbook uses a read-only key (a write attempt returns 403). Test indicators: event 1 "SOC lab - test indicators (T-05, UC-08)" with `ip-src` and `ip-dst` 10.10.30.10 and `domain` malicious.test.lab. In the workflow the value is `{{ "$exec.all_fields.data.srcip" | default: "none" }}`, so an alert without a source address matches nothing. Keys stay on the VM and in Shuffle, never in the repository.
 
 ## Kept on the VM only
 

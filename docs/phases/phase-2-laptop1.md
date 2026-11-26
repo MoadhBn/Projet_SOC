@@ -1,6 +1,6 @@
 # Phase 2: enrichment and orchestration (laptop 1)
 
-Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Step 2.6 started on 25 November: MISP installed, running and measured. Remaining: test indicators in MISP and a read-only API key (2.6d), MISP lookup in the playbook (2.6e), playbook export.
+Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Step 2.6 done on 26 November: MISP installed and measured, test indicators, read-only API key, and every Wazuh alert is looked up in MISP before reaching IRIS. Remaining: playbook export (2.7).
 
 This file is the journal of phase 2 on laptop 1.
 
@@ -55,7 +55,8 @@ The backend receives webhooks and stores workflows; Orborus runs them by startin
 | 2.3 | Wazuh to Shuffle integration (open point of the brief) | done |
 | 2.4 | DFIR-IRIS | done |
 | 2.5 | First playbook: Wazuh alert to DFIR-IRIS alert | done |
-| 2.6 | MISP with test indicators, lookup in the playbook | in progress: MISP running; indicators and playbook to do |
+| 2.6 | MISP with test indicators, lookup in the playbook | done |
+| 2.7 | Playbook exported to `shuffle/` without secrets | to do |
 
 ## 4. Steps
 
@@ -240,7 +241,7 @@ The `text` field sent by Wazuh is not used: it can carry raw log text with quote
 
 Known limit: IRIS shows as "Source Event Time" its own creation time, not the Wazuh timestamp (seconds apart); to set when the playbook is extended.
 
-### Step 2.6: MISP (in progress, 25 November 2026)
+### Step 2.6: MISP (done, 25 and 26 November 2026)
 
 #### Disk check before the installation
 
@@ -292,10 +293,60 @@ Memory with the four tools (`docker stats`, `free -h`):
 
 Decision: MISP stays running. The four tools fit in the 10 GB VM; the swap stays low. The tight resource is the Windows host (VM at its maximum): only one browser tab while working; MISP can be stopped with `docker compose down` in `~/misp` when not needed.
 
-#### Remaining in step 2.6
+#### 2.6d Test indicators and API key (26 November 2026)
 
-- 2.6d: event "SOC lab - test indicators (T-05, UC-08)" (distribution: own organisation) with `ip-src` and `ip-dst` 10.10.30.10 (Kali) and `domain` malicious.test.lab, all marked for IDS; read-only API key "Shuffle playbook"; test `POST /attributes/restSearch` for 10.10.30.10 (found) and 10.10.20.20 (not found).
-- 2.6e: MISP lookup of the alert's source address in the Shuffle workflow, result added to the IRIS alert.
+Lab addresses are private and appear in no public feed, so the indicators of the scenarios are added by hand.
+
+| Item | Value | Reason |
+|---|---|---|
+| Event 1 | "SOC lab - test indicators (T-05, UC-08)", distribution "Your organisation only", threat level High, analysis Completed, not published | Nothing shared outside the instance |
+| Attribute 1 | Network activity, `ip-src` 10.10.30.10, for IDS, "Kali - lab attacker (source)" | Attacker of the lab |
+| Attribute 2 | Network activity, `ip-dst` 10.10.30.10, for IDS, "Kali - lab attacker (destination, T-05)" | Connection towards a known address (T-05) |
+| Attribute 3 | Network activity, `domain` malicious.test.lab, for IDS, "Fictitious malicious domain (UC-08)" | UC-08 |
+| API key | "Shuffle playbook (read only)", read-only | Least privilege for the playbook (BNF-02) |
+
+Checks from the VM, the key kept in a shell variable (`read -s`):
+
+| Test | Result | What it proves |
+|---|---|---|
+| `POST /attributes/restSearch` value 10.10.30.10 | 2 attributes (`ip-src`, `ip-dst`, `to_ids` true, event 1) | Known indicator found |
+| Same for 10.10.20.20 | `"Attribute": []` | No false match on a lab target |
+| Same for malicious.test.lab | 1 attribute (`domain`) | Domain indicator found |
+| `POST /events/add` with the key | 403 | The key cannot write |
+
+The event did not need to be published for `restSearch` to return its attributes. MISP's header is `Authorization: <key>` (no `Bearer` prefix, unlike IRIS).
+
+#### 2.6e MISP lookup in the playbook (26 November 2026)
+
+First design: two branches after "Change Me", with conditions on the Wazuh field `all_fields.data.srcip` ("is empty", negated on the MISP branch), so that alerts without a source address skip MISP. Test with three alerts (two simulated alerts posted to the webhook with `srcip` 10.10.30.10 and 10.10.20.20, and a real alert from a manager restart, rule 502, without `srcip`): the MISP branch behaved as intended, but the branch "srcip is empty" also ran when `srcip` was set (both IRIS nodes created an alert). The condition was correctly configured and the Shuffle SDK code reads correct for "is empty"; the cause in Shuffle 2.3.0 was not found.
+
+Final design, without any condition:
+
+```
+Wazuh alerts (webhook) -> Change Me -> MISP lookup -> Create IRIS alert MISP
+```
+
+| Node | Setting |
+|---|---|
+| MISP lookup (Http, POST) | `https://10.10.10.10:9443/attributes/restSearch`, headers `Authorization: <read-only key>`, `Accept` and `Content-Type: application/json`, verify false; body `{"returnFormat":"json","value":"{{ "$exec.all_fields.data.srcip" \| default: "none" }}"}` |
+| Create IRIS alert MISP (Http, POST) | `/alerts/add` as in step 2.5, tag `misp-checked`, description mentioning the source address, and `"alert_context":{"src_ip":"$exec.all_fields.data.srcip","misp_attributes":$misp_lookup.body.response.Attribute}` |
+
+A missing field is replaced by an empty value in Shuffle; the Liquid filter `default` turns it into `none`, which matches no indicator, so an alert without a source address can never produce a false MISP match. Every alert now goes through MISP (one more API call per alert).
+
+| Test | MISP lookup | IRIS alert |
+|---|---|---|
+| Simulated SSH brute force, `srcip` 10.10.30.10 | 200, 2 attributes | 10, tags `wazuh`, `rule-5712`, `misp-checked`, "source 10.10.30.10 checked in MISP" |
+| Simulated connection, `srcip` 10.10.20.20 | 200, no attribute | 11, `misp-checked` |
+| Real alert rule 502, no `srcip` | 200, no attribute | 12, `misp-checked` |
+
+Each execution ran its three nodes ("3 + 0 = 3"), one IRIS alert per test. Exchanges 4, 5 and 7 of the architecture run end to end with no human action.
+
+Observations:
+
+- For alerts without a source address Shuffle records a notification "shuffle_variable_error: Failed finding exec.all_fields.data.srcip" on the two nodes using that field. The execution still succeeds (the variable is replaced by an empty value): expected for host alerts such as PowerShell.
+- Shuffle shows the browser's local time (Tunis, UTC+1); IRIS and Wazuh show UTC. For the rule 502 test the Shuffle execution started at 12:33:44 local time and IRIS created the alert at 11:33:59 UTC (12:33:59 local): about 15 seconds from the webhook to the IRIS alert, through MISP.
+- IRIS records its creation time as "Source Event Time"; passing the Wazuh `timestamp` in `alert_source_event_time` is a later improvement.
+- The first MISP key was visible on a screenshot of the node settings: it was deleted in MISP and replaced by a new read-only key before the tests above.
 
 ## 5. Problems met and how they were handled
 
@@ -312,6 +363,8 @@ Decision: MISP stays running. The four tools fit in the 10 GB VM; the swap stays
 | MISP HTTPS disabled without certificates; nginx runs as UID 101 | Own certificate in `ssl/`, key owned by UID 101 |
 | MISP generated password shown in a pasted terminal output | Replaced before the first start |
 | `misp-core` unhealthy at first start, `misp-nginx` not started | Waited for the first initialisation (about 5 minutes), then `docker compose up -d` again |
+| Shuffle branch condition "srcip is empty" did not stop its branch | Workflow rebuilt as a single chain; empty address replaced by `none` with the Liquid `default` filter |
+| MISP API key visible on a screenshot | Key deleted and replaced |
 
 ## 6. Résumé pour le rapport
 
