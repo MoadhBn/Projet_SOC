@@ -36,18 +36,25 @@ Source of the password procedure: "Changing the default password of Wazuh users"
 
 ## Integration with Shuffle
 
-The manager sends alerts to a Shuffle webhook with Wazuh's built-in `shuffle` integration (Integrator module). The block below is in `config/wazuh_cluster/wazuh_manager.conf` on the VM, right after the first `<ossec_config>` line. The real webhook ID stays on the VM: anyone who knows it can start the workflow.
+The manager sends alerts to a Shuffle webhook with Wazuh's built-in `shuffle` integration (Integrator module). The two blocks below are in `config/wazuh_cluster/wazuh_manager.conf` on the VM, right after the first `<ossec_config>` line. The real webhook ID stays on the VM: anyone who knows it can start the workflow.
 
 ```xml
   <integration>
     <name>shuffle</name>
     <hook_url>http://10.10.10.10:5001/api/v1/hooks/webhook_<ID></hook_url>
-    <level>3</level>
+    <level>7</level>
+    <alert_format>json</alert_format>
+  </integration>
+  <integration>
+    <name>shuffle</name>
+    <hook_url>http://10.10.10.10:5001/api/v1/hooks/webhook_<ID></hook_url>
+    <rule_id>86601</rule_id>
     <alert_format>json</alert_format>
   </integration>
 ```
 
-- Level 3 is provisional (test with the manager's own alerts); the final threshold is set with the use cases.
+- Level 7 or more covers SSH brute force (5712, 5763: level 10) and encoded PowerShell (91809: 10; 92057, 92071: 12). Suricata alerts (86601) are level 3, so they have their own block. Level 3 was used for the first tests; reasons in `docs/phases/phase-2-laptop1.md`, step 2.8.
+- Both blocks load (`Enabling integration for: 'shuffle'` twice in `ossec.log`).
 - HTTP to the Shuffle backend (port 5001): the traffic stays inside the VM; HTTPS on 3443 uses a self-signed certificate.
 - **Apply a change of `wazuh_manager.conf` with `sudo docker compose up -d --force-recreate wazuh.manager`.** A plain `docker compose restart` did not copy the mounted file into `/var/ossec/etc/ossec.conf`; a recreated container does (the data stays in the volumes).
 - Vulnerability detection is disabled (`<vulnerability-detection><enabled>no</enabled>`): with no agent it downloaded about 1 GB and wrote tens of GB to disk per day, and it is not used by the use cases. Set it back to `yes` to enable it.

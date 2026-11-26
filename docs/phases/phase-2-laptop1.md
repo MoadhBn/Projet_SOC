@@ -1,6 +1,6 @@
 # Phase 2: enrichment and orchestration (laptop 1)
 
-Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Step 2.6 done on 26 November: MISP installed and measured, test indicators, read-only API key, and every Wazuh alert is looked up in MISP before reaching IRIS. Step 2.7 done on 26 November: playbook exported to `shuffle/` without secrets, after a maintenance of the VM (11 GB freed). Remaining before closing: Wazuh level threshold, cleanup of the IRIS test alerts, French summary.
+Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Step 2.6 done on 26 November: MISP installed and measured, test indicators, read-only API key, and every Wazuh alert is looked up in MISP before reaching IRIS. Step 2.7 done on 26 November: playbook exported to `shuffle/` without secrets, after a maintenance of the VM (11 GB freed). Phase closed on 26 November on laptop 1 (2.8): filter of the alerts sent to Shuffle set from the rule levels of the use cases, IRIS test data closed, snapshot `phase2-soc-stack`. The tests with real alerts from laptop 2 are part of the joint session.
 
 This file is the journal of phase 2 on laptop 1.
 
@@ -57,6 +57,7 @@ The backend receives webhooks and stores workflows; Orborus runs them by startin
 | 2.5 | First playbook: Wazuh alert to DFIR-IRIS alert | done |
 | 2.6 | MISP with test indicators, lookup in the playbook | done |
 | 2.7 | Playbook exported to `shuffle/` without secrets | done |
+| 2.8 | Closing: alerts sent to Shuffle filtered for the use cases, IRIS test data closed, snapshot | done |
 
 ## 4. Steps
 
@@ -139,7 +140,7 @@ Block added after the first `<ossec_config>` line of `config/wazuh_cluster/wazuh
 |---|---|---|
 | `name` | shuffle | Built-in integration |
 | `hook_url` | `http://10.10.10.10:5001/api/v1/hooks/webhook_<id>` | Shuffle backend; traffic stays inside the VM. The interface shows the URL on 3443 (HTTPS with a self-signed certificate) |
-| `level` | 3 | Provisional, the documentation's example: the manager's own alerts are enough to test. Final threshold set with the use cases |
+| `level` | 3 | Provisional, the documentation's example: the manager's own alerts are enough to test. Replaced in step 2.8 |
 | `alert_format` | json | Required for Shuffle |
 
 Problem met: after `docker compose restart wazuh.manager`, `wazuh-integratord` was not running and logged `Remote integrations not configured. Clean exit.` The mounted file contained the block, but `/var/ossec/etc/ossec.conf` in the container did not. After `sudo docker compose up -d --force-recreate wazuh.manager`, the start log shows `'/wazuh-config-mount/etc/ossec.conf' -> '/var/ossec/etc/ossec.conf'`. Rule kept: apply manager configuration changes by recreating the container (data stays in the volumes).
@@ -372,7 +373,7 @@ Not done, on purpose:
 - Log rotation in Docker's `daemon.json`: logs are small, and the change needs Docker restarted and all 18 containers recreated.
 - Removal of unused images: `docker image prune -a` would also remove the Shuffle Tools, http and worker images, which only run during an execution.
 
-Limit found in `ossec.log`: when the VM starts, the Wazuh manager can be ready before the Shuffle backend; the integration then logs `Connection refused` and the alert is not sent again (`wazuh-integratord` does not retry). The alert stays in the Wazuh indexer and dashboard. In the lab, scenarios are only run once all containers are up; a queue between Wazuh and Shuffle is outside the brief.
+Limit found in `ossec.log`: when the VM starts, the Wazuh manager can be ready before the Shuffle backend; the integration then logs `Connection refused` and the alert is not sent again. The integration option `retries` (default 3) only applies "on timeout" according to the 4.14 reference (`integration.rst`), not to a refused connection. The alert stays in the Wazuh indexer and dashboard. In the lab, scenarios are only run once all containers are up; a queue between Wazuh and Shuffle is outside the brief.
 
 ### Step 2.7: playbook export (done, 26 November 2026)
 
@@ -395,6 +396,45 @@ Shuffle, Workflows, `Wazuh-Alerts`, Export, then cleaned on the Windows host bef
 
 Import steps and known limits: `shuffle/README.md`.
 
+### Step 2.8: closing (done, 26 November 2026)
+
+Snapshot `phase2-soc-stack` of the soc VM taken with the VM powered off.
+
+#### Alerts sent to Shuffle
+
+Levels read in the ruleset of the running manager (`/var/ossec/ruleset/rules/`, Wazuh 4.14.9):
+
+| Rule | Level | Use case | Sent to Shuffle |
+|---|---|---|---|
+| 502 Wazuh server started | 3 | none | no |
+| 5710 sshd: login with a non-existent user | 5 | single attempt | no |
+| 5712 / 5763 sshd: brute force | 10 | UC-01 | yes |
+| 91809 PowerShell script may be using Base64 decoding | 10 | UC-02 | yes |
+| 92057 / 92071 PowerShell executed a base64 encoded command | 12 | UC-02 | yes |
+| 86601 Suricata: Alert | 3 | UC-04 (port scan) | yes |
+
+A single level cannot work: at 7 the Suricata alerts (level 3) would never reach the playbook; at 3 every host event of level 3 to 6 would become an IRIS alert once the agents are connected. Two `shuffle` blocks with the same webhook replace the first one:
+
+| Block | Filter | Sends |
+|---|---|---|
+| 1 | `<level>7</level>` | Every alert of level 7 or more |
+| 2 | `<rule_id>86601</rule_id>` | Suricata alerts only; no level, so nothing else can match, and 86601 (level 3) is never sent twice |
+
+The 4.14 reference lists `level`, `rule_id` and `group` but does not say whether two blocks may share the name `shuffle`. Checked on the manager instead. File saved first as `wazuh_manager.conf.bak-level3` on the VM; change made with `sed` after checking that the file had exactly one `<level>3</level>` and one `</integration>`; applied with `docker compose up -d --force-recreate wazuh.manager`.
+
+| Test | Result |
+|---|---|
+| `grep -c "<name>shuffle</name>"` in the container's `ossec.conf` | 2 |
+| `ossec.log` at 17:51:18 UTC | `Enabling integration for: 'shuffle'` twice: both blocks loaded |
+| `wazuh-control status` | `analysisd` and `integratord` running |
+| Negative test: rule 502 (level 3) raised by this restart | No Shuffle execution after 18:15:38 local time, no IRIS alert 14, no integration error after 17:51 |
+
+The positive tests (SSH brute force, encoded PowerShell, Suricata alert each giving one IRIS alert) need the agents of laptop 2: joint session. The volume of Suricata alerts is unknown until then; if it is too high, block 2 can be limited further.
+
+#### IRIS test data
+
+The 13 test alerts (13 and 26 November) set to Closed, not deleted: alert 10 is the evidence of the MISP enrichment. Demo case 1 "Initial Demo", created by IRIS at installation, closed.
+
 ## 5. Problems met and how they were handled
 
 | Problem | Handling |
@@ -415,7 +455,23 @@ Import steps and known limits: `shuffle/README.md`.
 | 11 GB left in `queue/vd` by the disabled vulnerability detection | Deleted with the manager stopped |
 | Alert lost when the manager starts before Shuffle (`Connection refused`, no retry) | Documented as a limit; scenarios run with all containers up |
 | Shuffle export: keys in clear, icons as base64, URLs of the http nodes empty | Cleaned on the host and checked before the commit; URLs put back |
+| Suricata alerts are level 3, below any useful single threshold | Two integration blocks: level 7, and rule 86601 |
 
 ## 6. Résumé pour le rapport
 
-À rédiger à la clôture de la phase.
+La phase 2 ajoute à la VM soc du laptop 1 les trois outils qui transforment une alerte Wazuh en incident traité : Shuffle 2.3.0 (SOAR), MISP 2.5.52 (renseignement sur les menaces) et DFIR-IRIS 2.4.29 (gestion des incidents, retenu à la place de TheHive). Les quatre outils tournent dans la même VM sous Docker (18 conteneurs) et occupent environ 5,9 Gio de mémoire. Chaque outil a été démarré seul puis mesuré avant d'ajouter le suivant.
+
+Le playbook `Wazuh-Alerts` réalise sans action humaine les échanges 4, 5 et 7 de l'architecture : Wazuh envoie l'alerte au webhook de Shuffle par son intégration native, Shuffle cherche l'adresse source dans MISP, puis crée dans DFIR-IRIS une alerte contenant la règle Wazuh, le résultat MISP et l'alerte complète. Testé avec une adresse présente dans MISP (Kali, 2 attributs trouvés), une adresse inconnue et une alerte sans adresse : une seule alerte IRIS par test, en 10 à 25 secondes. Le playbook est versionné dans `shuffle/`, sans clés API ni identifiant de webhook.
+
+Seules les alertes utiles aux cas d'usage partent vers Shuffle : celles de niveau 7 ou plus (force brute SSH 10, PowerShell encodé 10 à 12) et les alertes Suricata (règle 86601, niveau 3), choisies d'après les niveaux réels des règles de Wazuh 4.14.9.
+
+Écarts par rapport au cahier des charges, tous mesurés ou justifiés :
+
+- VM à 10 Go au lieu de 11 Go : à 11 Go, l'hôte Windows ne gardait que 126 Mo de mémoire disponible.
+- Playbook en chaîne unique au lieu de branches conditionnelles : une condition de Shuffle 2.3.0 n'arrêtait pas sa branche et créait des alertes en double ; chaque alerte passe désormais par MISP, avec la valeur `none` quand l'adresse manque, ce qui ne peut pas produire de fausse correspondance.
+- Détection de vulnérabilités de Wazuh désactivée : hors cas d'usage, elle téléchargeait environ 1 Go par jour et a laissé 11 Go sur le disque, libérés lors de la maintenance.
+- Envoi de Wazuh vers Shuffle en HTTP à l'intérieur de la VM ; certificats auto-signés non vérifiés entre Shuffle, MISP et DFIR-IRIS, sur le réseau isolé du laboratoire.
+
+Limites connues : une alerte produite pendant que Shuffle démarre est refusée et n'est pas renvoyée par Wazuh (elle reste visible dans Wazuh) ; toutes les alertes IRIS ont la sévérité « Unspecified » en attendant le score de la phase 3 ; un titre d'alerte contenant un guillemet rendrait la requête vers IRIS invalide, à vérifier avec les vraies alertes.
+
+Reste à faire en séance commune : le câble entre les deux laptops, l'inscription des agents, puis les tests avec de vraies attaques (UC-01, UC-02, UC-04) jusqu'à l'alerte dans DFIR-IRIS.

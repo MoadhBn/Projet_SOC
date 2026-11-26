@@ -32,8 +32,8 @@ Shuffle's own export also left the `url` field of the two http nodes empty; the 
 
 1. Shuffle, Workflows, Import, choose this file.
 2. In `MISP_lookup` and `Create_IRIS_alert_MISP`, replace `change-me` with the keys (do not take screenshots of these fields).
-3. Start the webhook trigger. Shuffle gives it a new identifier: put the new URL, with port 5001 and plain HTTP (`http://10.10.10.10:5001/api/v1/hooks/webhook_<id>`), in the `hook_url` of the Wazuh manager configuration, then recreate the manager container (`docker compose up -d --force-recreate wazuh.manager`).
-4. Test: restart the Wazuh manager; rule 502 "Wazuh server started" must give one execution with three nodes run and one IRIS alert tagged `misp-checked`.
+3. Start the webhook trigger. Shuffle gives it a new identifier: put the new URL, with port 5001 and plain HTTP (`http://10.10.10.10:5001/api/v1/hooks/webhook_<id>`), in the `hook_url` of both `shuffle` blocks of the Wazuh manager configuration, then recreate the manager container (`docker compose up -d --force-recreate wazuh.manager`).
+4. Test: post a sample alert to the webhook (or raise an alert of level 7 or more); it must give one execution with three nodes run and one IRIS alert tagged `misp-checked`. Rule 502 "Wazuh server started" (level 3) is no longer sent.
 
 ## Known limits
 

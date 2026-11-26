@@ -45,7 +45,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 |---|---|---|---|---|
 | 0 | VMs, zones, firewall, cable link | **done** except step 0.7 (cable) | **done** except step 0.7 (cable) | |
 | 1 | Detection base | **done** on its side: Wazuh 4.14.9 running; enrolment and use cases need the joint session | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
-| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **almost done**: Shuffle 2.3.0, DFIR-IRIS 2.4.29 and MISP 2.5.52 running; every Wazuh alert is looked up in MISP and becomes an IRIS alert automatically; playbook exported to `shuffle/`. Closing items left | nothing to do yet | |
+| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **done** on its side: Shuffle 2.3.0, DFIR-IRIS 2.4.29 and MISP 2.5.52 running; Wazuh alerts of the use cases are looked up in MISP and become IRIS alerts automatically; playbook in `shuffle/`. Tests with real attacks need the joint session | nothing to do yet | |
 | 3 | AI engine | n/a | **started early**: models compared, API skeleton with the score formula | |
 | 4 | Response, cancel link, unblock, dashboards | not started | not started | |
 | 5 | Six scenarios, measurements, report | not started | not started | Report 3 days before séance 7 |
@@ -60,7 +60,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 - **Phase 0** (`docs/phases/phase-0-laptop1.md`): VMware networks (VMnet0 bridged to the Realtek Ethernet card, VMnet12 host-only for solo mode, host 10.10.10.1); soc VM (4 vCPU, 8 GB in phase 1 and 10 GB from phase 2, 4 GB swap, 85 GB disk) with Ubuntu 24.04.5 LTS in text mode, `ens33` 10.10.10.10/24 without gateway, persistent route 10.10.20.0/24 via 10.10.10.254, NAT for downloads, SSH from the host; snapshot `phase0-baseline`.
 - **Phase 1** (`docs/phases/phase-1-laptop1.md`): Docker Engine 29.9.3 and Compose v5.7.1 from Docker's repository; Wazuh 4.14.9 official single-node deployment (manager, indexer with 1 GB heap, dashboard on https://10.10.10.10); default passwords of `admin`, `kibanaserver` and `wazuh-wui` changed following the official procedure, passwords kept in a `.env` outside the repository; Compose file without secrets in `infra/laptop1-soc/wazuh/`. Ready for the agents: ports 1514 and 1515 published on 10.10.10.10.
-- **Phase 2, almost done** (`docs/phases/phase-2-laptop1.md`): VM at 10 GB after measurement; Shuffle 2.3.0 (images pinned, OpenSearch heap 1 GB on 127.0.0.1:9201, Orborus without Swarm and without Tenzir pipelines) next to Wazuh; Wazuh's built-in `shuffle` integration sends alerts to the workflow `Wazuh-Alerts` (level 3 for now). Wazuh and Shuffle together: about 4.5 GiB in the VM. DFIR-IRIS 2.4.29 on https://10.10.10.10:8443 (own certificate, secrets changed, about 1.0 GiB). First playbook: Wazuh alert, Shuffle, IRIS alert (`POST /alerts/add`), tested with a real Wazuh alert. Wazuh vulnerability detection disabled (heavy disk and network use, not in the use cases). MISP 2.5.52 on https://10.10.10.10:9443 (MariaDB buffer 256 MB, about 1.25 GiB) with test indicators for Kali (10.10.30.10) and malicious.test.lab, read-only API key; the playbook is now Wazuh alert, Shuffle, MISP lookup of the source address, IRIS alert with the MISP result (about 15 seconds end to end). The four tools together: about 5.9 GiB, 18 containers. Maintenance on 26 November: 11 GB freed in `queue/vd`; playbook exported to `shuffle/` without keys or webhook identifier.
+- **Phase 2, done on laptop 1** (`docs/phases/phase-2-laptop1.md`): VM at 10 GB after measurement; Shuffle 2.3.0 (images pinned, OpenSearch heap 1 GB on 127.0.0.1:9201, Orborus without Swarm and without Tenzir pipelines) next to Wazuh; Wazuh's built-in `shuffle` integration sends alerts to the workflow `Wazuh-Alerts` (level 7 or more, plus Suricata alerts, rule 86601). Wazuh and Shuffle together: about 4.5 GiB in the VM. DFIR-IRIS 2.4.29 on https://10.10.10.10:8443 (own certificate, secrets changed, about 1.0 GiB). First playbook: Wazuh alert, Shuffle, IRIS alert (`POST /alerts/add`), tested with a real Wazuh alert. Wazuh vulnerability detection disabled (heavy disk and network use, not in the use cases). MISP 2.5.52 on https://10.10.10.10:9443 (MariaDB buffer 256 MB, about 1.25 GiB) with test indicators for Kali (10.10.30.10) and malicious.test.lab, read-only API key; the playbook is now Wazuh alert, Shuffle, MISP lookup of the source address, IRIS alert with the MISP result (about 15 seconds end to end). The four tools together: about 5.9 GiB, 18 containers. Maintenance on 26 November: 11 GB freed in `queue/vd`; playbook exported to `shuffle/` without keys or webhook identifier; IRIS test data closed; snapshot `phase2-soc-stack`.
 
 ### Points of the brief's section 12 (to verify during the build)
 
@@ -69,7 +69,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | How Suricata's eve.json reaches Wazuh | **Answered**: OPNsense plugin `os-wazuh-agent`, option "Intrusion detection events" |
 | Whether OPNsense expires a block by itself | **Answered as far as the docs go**: nothing documented; Shuffle schedules the unblock as designed. Entries of an External alias are lost when the firewall reboots |
 | OPNsense API calls to add and remove a blocked address | **Half answered**: add is `POST /api/firewall/alias_util/add/SOC_BLOCKLIST`; delete to confirm in the API reference (phase 4). Also found: the plugin's active response `opnsense-fw` can block addresses, to compare in phase 4 |
-| Wazuh's integration towards a Shuffle webhook, alert level threshold | **Answered for the integration**: built-in `shuffle` integration of the Integrator module, alerts posted to `http://10.10.10.10:5001/api/v1/hooks/webhook_<id>` (inside the VM), full alert under `all_fields`. **Threshold open**: level 3 for the tests, final value with the use cases |
+| Wazuh's integration towards a Shuffle webhook, alert level threshold | **Answered for the integration**: built-in `shuffle` integration of the Integrator module, alerts posted to `http://10.10.10.10:5001/api/v1/hooks/webhook_<id>` (inside the VM), full alert under `all_fields`. **Threshold answered**: level 7 or more, plus rule 86601 (Suricata alerts are level 3), from the rule levels of the use cases; two `shuffle` blocks, both loaded |
 | VMware bridging on the laptops' Ethernet cards | **Open** (step 0.7) |
 | Real memory use on laptop 1 | **Answered without agents**: the four tools fit together in a 10 GB VM, about 5.9 GiB in all (Wazuh 1.95, Shuffle 1.97, MISP 1.25 with MariaDB buffer at 256 MB, DFIR-IRIS 0.75), against 10.5 GB estimated; VM swap about 0.2 GiB. A VM of 11 GB left the Windows host with 126 MB available, so the VM runs at 10 GB; the host keeps 0.2 to 0.3 GB available with the VM at its maximum. To measure again with agents and scenarios |
 | French quality of the 3B models | **First answer**: usable but imperfect; Gemma 3 4B clearly better; confirm with the real prompt on 20 to 30 lab alerts |
@@ -123,13 +123,13 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 
 | Step | Action | Check |
 |---|---|---|
-| Before | Laptop 1: raise the Wazuh to Shuffle level threshold (3 is for tests only) | `grep -A5 "<integration>"` in the manager configuration |
 | 0.7 | Cable between the laptops. Laptop 1: soc VM adapter 1 from VMnet12 to VMnet0 (bridged, bound to Ethernet), 10.10.10.1 moved from the VMnet12 host adapter to the Ethernet card (no gateway), VMnet12 host adapter disabled. Laptop 2: firewall adapter 1 to VMnet0, VMnet12 host adapter disabled, 10.10.10.20 moved to the Ethernet card | Laptop 2 host and OPNsense ping 10.10.10.1 and 10.10.10.10; the soc VM pings 10.10.10.254 and, through its route, 10.10.20.20 |
 | 1.5 | Agents enrol: targets automatically (already pointed at 10.10.10.10); OPNsense plugin enabled with manager 10.10.10.10 and "Intrusion detection events" ticked | Three agents active in the Wazuh dashboard; Suricata alerts visible in Wazuh |
 | 1.6 | First use cases: SSH brute force (UC-01), encoded PowerShell (UC-02), port scan (UC-04), from Kali or on the Windows target | An alert for each in Wazuh, with its ATT&CK technique |
+| 2 | Same attacks through the playbook | One IRIS alert each (rules 5712/5763, 92057, 86601), MISP match for Kali 10.10.30.10; note the number of Suricata alerts |
 | - | Windows firewall on laptop 2 allows the soc VM to reach the analysis API port (needed for phase 3) | Shuffle can call `http://10.10.10.20:8000/health` |
 
-### Phase 2 (laptop 1): next steps, in order (state on 26 November 2026)
+### Phase 2 (laptop 1): done on 26 November 2026
 
 Done: Shuffle, Wazuh integration, DFIR-IRIS, first playbook (Wazuh alert to IRIS alert), MISP installed and measured. Next:
 
@@ -137,8 +137,7 @@ Done: Shuffle, Wazuh integration, DFIR-IRIS, first playbook (Wazuh alert to IRIS
 2. Done (26 November): every Wazuh alert is looked up in MISP (source address, `none` when missing) and reaches IRIS with the result; about 15 seconds from webhook to IRIS alert.
 3. Done (26 November): workflow exported to `shuffle/` without the IRIS key, the MISP key or the webhook identifier.
 4. Done (26 November): maintenance, 11 GB of `queue/vd` freed, chain tested again.
-5. Close phase 2: test alerts in IRIS closed, French summary.
-6. Before the joint session: raise the Wazuh to Shuffle level threshold (3 is only for tests).
+5. Done (26 November): alerts sent to Shuffle filtered (level 7 or more, plus Suricata rule 86601), IRIS test data closed, snapshot `phase2-soc-stack`, French summary in the phase journal.
 
 Details in `docs/phases/phase-2-laptop1.md`; configuration in `infra/laptop1-soc/` (wazuh, shuffle, iris, misp).
 
