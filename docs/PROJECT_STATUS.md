@@ -45,7 +45,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 |---|---|---|---|---|
 | 0 | VMs, zones, firewall, cable link | **done** except step 0.7 (cable) | **done** except step 0.7 (cable) | |
 | 1 | Detection base | **done** on its side: Wazuh 4.14.9 running; enrolment and use cases need the joint session | **done** on its side; enrolment and use cases wait for the manager | Séance 4 |
-| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **mostly done**: Shuffle 2.3.0 and DFIR-IRIS 2.4.29 running; a Wazuh alert becomes an IRIS alert automatically. MISP to do | nothing to do yet | |
+| 2 | MISP, Shuffle, DFIR-IRIS, first playbook | **mostly done**: Shuffle 2.3.0, DFIR-IRIS 2.4.29 and MISP 2.5.52 running; a Wazuh alert becomes an IRIS alert automatically. MISP test indicators, MISP lookup in the playbook and playbook export to do | nothing to do yet | |
 | 3 | AI engine | n/a | **started early**: models compared, API skeleton with the score formula | |
 | 4 | Response, cancel link, unblock, dashboards | not started | not started | |
 | 5 | Six scenarios, measurements, report | not started | not started | Report 3 days before séance 7 |
@@ -71,7 +71,7 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | OPNsense API calls to add and remove a blocked address | **Half answered**: add is `POST /api/firewall/alias_util/add/SOC_BLOCKLIST`; delete to confirm in the API reference (phase 4). Also found: the plugin's active response `opnsense-fw` can block addresses, to compare in phase 4 |
 | Wazuh's integration towards a Shuffle webhook, alert level threshold | **Answered for the integration**: built-in `shuffle` integration of the Integrator module, alerts posted to `http://10.10.10.10:5001/api/v1/hooks/webhook_<id>` (inside the VM), full alert under `all_fields`. **Threshold open**: level 3 for the tests, final value with the use cases |
 | VMware bridging on the laptops' Ethernet cards | **Open** (step 0.7) |
-| Real memory use on laptop 1 | **Partly answered**: Wazuh about 2.2 to 2.3 GiB without agents (3.5 GB estimated), Shuffle about 2.0 to 2.2 GiB (2.5 GB estimated), DFIR-IRIS about 1.0 GiB (1.5 GB estimated); the three together leave 4.4 GiB available in the VM. A VM of 11 GB left the Windows host with 126 MB available once the guest cache was full, so the VM runs at 10 GB. MISP still to measure; whether all four tools fit at once is not known yet |
+| Real memory use on laptop 1 | **Answered without agents**: the four tools fit together in a 10 GB VM, about 5.9 GiB in all (Wazuh 1.95, Shuffle 1.97, MISP 1.25 with MariaDB buffer at 256 MB, DFIR-IRIS 0.75), against 10.5 GB estimated; VM swap about 0.2 GiB. A VM of 11 GB left the Windows host with 126 MB available, so the VM runs at 10 GB; the host keeps 0.2 to 0.3 GB available with the VM at its maximum. To measure again with agents and scenarios |
 | French quality of the 3B models | **First answer**: usable but imperfect; Gemma 3 4B clearly better; confirm with the real prompt on 20 to 30 lab alerts |
 
 ### Deviations from the brief so far
@@ -128,9 +128,17 @@ Temporary arrangement while the team works apart: on laptop 2 the SOC link runs 
 | 1.6 | First use cases: SSH brute force (UC-01), encoded PowerShell (UC-02), port scan (UC-04), from Kali or on the Windows target | An alert for each in Wazuh, with its ATT&CK technique |
 | - | Windows firewall on laptop 2 allows the soc VM to reach the analysis API port (needed from phase 2 on) | Shuffle can call `http://10.10.10.20:8000/health` |
 
-### Phase 2 (laptop 1, after the joint session)
+### Phase 2 (laptop 1): next steps, in order (state on 25 November 2026)
 
-MISP with few feeds and hand-added test indicators (lab addresses are private and appear in no feed), Shuffle with its OpenSearch heap limited to about 1 GB, DFIR-IRIS, Wazuh to Shuffle integration (open point: built-in integration and alert level threshold), and a first playbook from alert to incident. Each in its own journal `docs/phases/phase-2-laptop1.md`, exported playbooks in `shuffle/`.
+Done: Shuffle, Wazuh integration, DFIR-IRIS, first playbook (Wazuh alert to IRIS alert), MISP installed and measured. Next:
+
+1. MISP test indicators: event "SOC lab - test indicators (T-05, UC-08)" with `ip-src` and `ip-dst` 10.10.30.10 and `domain` malicious.test.lab (for IDS); read-only API key; check `POST /attributes/restSearch` (10.10.30.10 found, 10.10.20.20 not found).
+2. MISP lookup in the Shuffle workflow, result added to the IRIS alert.
+3. Export the workflow to `shuffle/` without the IRIS key, the MISP key or the webhook URL.
+4. Maintenance: free the 11 GB of `queue/vd` left by the disabled Wazuh vulnerability detection (manager stopped, then checks).
+5. Before the joint session: raise the Wazuh to Shuffle level threshold (3 is only for tests).
+
+Details in `docs/phases/phase-2-laptop1.md`; configuration in `infra/laptop1-soc/` (wazuh, shuffle, iris, misp).
 
 ## 5. Loose ends on laptop 2
 

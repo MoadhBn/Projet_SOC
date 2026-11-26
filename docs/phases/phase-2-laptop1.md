@@ -1,6 +1,6 @@
 # Phase 2: enrichment and orchestration (laptop 1)
 
-Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Remaining: MISP with test indicators (2.6), then the playbook export.
+Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Step 2.6 started on 25 November: MISP installed, running and measured. Remaining: test indicators in MISP and a read-only API key (2.6d), MISP lookup in the playbook (2.6e), playbook export.
 
 This file is the journal of phase 2 on laptop 1.
 
@@ -55,7 +55,7 @@ The backend receives webhooks and stores workflows; Orborus runs them by startin
 | 2.3 | Wazuh to Shuffle integration (open point of the brief) | done |
 | 2.4 | DFIR-IRIS | done |
 | 2.5 | First playbook: Wazuh alert to DFIR-IRIS alert | done |
-| 2.6 | MISP with test indicators, lookup in the playbook | to do |
+| 2.6 | MISP with test indicators, lookup in the playbook | in progress: MISP running; indicators and playbook to do |
 
 ## 4. Steps
 
@@ -240,6 +240,63 @@ The `text` field sent by Wazuh is not used: it can carry raw log text with quote
 
 Known limit: IRIS shows as "Source Event Time" its own creation time, not the Wazuh timestamp (seconds apart); to set when the playbook is extended.
 
+### Step 2.6: MISP (in progress, 25 November 2026)
+
+#### Disk check before the installation
+
+`docker system df`: images 17.7 GB (40, of which 23 are Shuffle app images started at each execution: kept), 62 containers (50 stopped leftovers of Shuffle executions, 54 MB), volumes 11.75 GB. Almost all of the volumes is `single-node_wazuh_queue` (12 GB), and 11 GB of it is `queue/vd`, plus 484 MB in `queue/vd_updater`: the database of the vulnerability detection module disabled in step 2.4. Disk: 40 GB used, 40 GB free, enough for MISP. Removing `vd` is not described in the Wazuh documentation; it is left for a separate maintenance step, not mixed with an installation.
+
+#### 2.6a Configuration
+
+Source: repository `MISP/misp-docker`, commit `88e90bf` (19 November 2026; the repository has no tags), README and `template.env`. Image tags `v2.5.52` (core, nginx) and `v3.1.5` (modules) checked on ghcr.io.
+
+| Setting | Value | Reason |
+|---|---|---|
+| Running tags | core and nginx `v2.5.52`, modules `v3.1.5` | Default is `latest` |
+| Ports | 9080 / 9443, `BASE_URL=https://10.10.10.10:9443` | 443 is the Wazuh dashboard's; `BASE_URL` is mandatory |
+| MariaDB `INNODB_BUFFER_POOL_SIZE` | 256M instead of 2048M | Memory budget |
+| Secrets | `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REDIS_PASSWORD` (48 hex characters), `ENCRYPTION_KEY` (32), generated on the VM | Defaults are public (`example`, `password`, `redispassword`) |
+| Administrator | `admin@soc.lab`, organisation `SOC-Lab`, generated password | Account created at the first start |
+| `DISABLE_PRINTING_PLAINTEXT_CREDENTIALS` | true | No credential in the logs |
+| `TZ` | Africa/Tunis | |
+| Certificate | Own self-signed certificate in `ssl/`, CN and IP 10.10.10.10; key owned by UID 101 (nginx user), mode 400 | The README states that HTTPS is disabled when the certificates are missing |
+
+Checks: the ten settings present; 3 random passwords; encryption key; administrator password set; `docker compose config --quiet` without error (only "variable is not set" warnings for optional features: LDAP, OIDC, Azure AD, proxy, S3); `docker compose config --images` lists six images, none `latest`. The generated administrator password was shown in a pasted terminal output before the first start; it was replaced by a new one, written straight into `.env`, before MISP ever started.
+
+#### 2.6b Images
+
+Pulled with `systemd-run --unit=misp-pull` in 6 minutes, no failure: misp-core 478 MB compressed / 2.33 GB on disk, misp-modules 451 MB / 1.9 GB, mariadb 105 MB / 456 MB, misp-nginx 75 MB / 276 MB, smtp 59 MB / 244 MB, valkey 43 MB / 162 MB.
+
+#### 2.6c First start and measurement
+
+`docker compose up -d`: redis, db and misp-modules healthy, mail up; `misp-core` was reported unhealthy after 74 seconds and `misp-nginx` was therefore not started ("dependency failed to start"). The `misp-core` log showed a normal first initialisation: database updates, GPG key, organisation SOC-Lab and user admin@soc.lab, base URL, then the component updates (taxonomies, galaxies, warning lists, object templates). The health check only gives 60 seconds before counting failures, which is shorter than this first initialisation. After about 5 minutes the log read "MISP is now live. Users can now log in.", the container turned healthy, and a second `docker compose up -d` started `misp-nginx`.
+
+| Test | Result | What it proves |
+|---|---|---|
+| `docker compose ps` | db, redis, misp-modules, misp-core, misp-nginx healthy; mail up | MISP stack running |
+| `curl https://10.10.10.10:9443/users/login` | 200 | HTTPS with our certificate on 9443 |
+| Login as admin@soc.lab | Events page (empty) | Administrator account from `.env` works |
+| `docker ps` | 18 containers up (Wazuh 3, Shuffle 4, IRIS 5, MISP 6) | The four tools run together |
+
+Memory with the four tools (`docker stats`, `free -h`):
+
+| Tool | Measured | Brief estimate |
+|---|---|---|
+| MISP (core 418 MiB, modules 415 MiB, MariaDB 403 MiB, mail 12 MiB, Valkey 10 MiB, nginx 9 MiB) | about 1.25 GiB | 3 GB |
+| Shuffle | about 1.97 GiB | 2.5 GB |
+| Wazuh | about 1.95 GiB | 3.5 GB |
+| DFIR-IRIS | about 0.75 GiB | 1.5 GB |
+| **Four tools** | **about 5.9 GiB** | **10.5 GB** |
+| Whole VM (10 GB) | 6.7 GiB used, 3.0 GiB available, swap 192 MiB | |
+| Windows host | 208 to 313 MB available | |
+
+Decision: MISP stays running. The four tools fit in the 10 GB VM; the swap stays low. The tight resource is the Windows host (VM at its maximum): only one browser tab while working; MISP can be stopped with `docker compose down` in `~/misp` when not needed.
+
+#### Remaining in step 2.6
+
+- 2.6d: event "SOC lab - test indicators (T-05, UC-08)" (distribution: own organisation) with `ip-src` and `ip-dst` 10.10.30.10 (Kali) and `domain` malicious.test.lab, all marked for IDS; read-only API key "Shuffle playbook"; test `POST /attributes/restSearch` for 10.10.30.10 (found) and 10.10.20.20 (not found).
+- 2.6e: MISP lookup of the alert's source address in the Shuffle workflow, result added to the IRIS alert.
+
 ## 5. Problems met and how they were handled
 
 | Problem | Handling |
@@ -252,6 +309,9 @@ Known limit: IRIS shows as "Source Event Time" its own creation time, not the Wa
 | `docker compose restart` did not apply the new manager configuration | `docker compose up -d --force-recreate wazuh.manager` |
 | Wazuh vulnerability detection used disk and network heavily for nothing | Module disabled |
 | IRIS severity identifiers not in creation order (Medium is 1) | Read from the API before building the playbook |
+| MISP HTTPS disabled without certificates; nginx runs as UID 101 | Own certificate in `ssl/`, key owned by UID 101 |
+| MISP generated password shown in a pasted terminal output | Replaced before the first start |
+| `misp-core` unhealthy at first start, `misp-nginx` not started | Waited for the first initialisation (about 5 minutes), then `docker compose up -d` again |
 
 ## 6. Résumé pour le rapport
 
