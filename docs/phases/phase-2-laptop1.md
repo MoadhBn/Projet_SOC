@@ -1,6 +1,6 @@
 # Phase 2: enrichment and orchestration (laptop 1)
 
-Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Step 2.6 done on 26 November: MISP installed and measured, test indicators, read-only API key, and every Wazuh alert is looked up in MISP before reaching IRIS. Remaining: playbook export (2.7).
+Status: started 13 November 2026. Steps 2.0 to 2.5 done: a Wazuh alert becomes an IRIS alert without human action. Step 2.6 done on 26 November: MISP installed and measured, test indicators, read-only API key, and every Wazuh alert is looked up in MISP before reaching IRIS. Step 2.7 done on 26 November: playbook exported to `shuffle/` without secrets, after a maintenance of the VM (11 GB freed). Remaining before closing: Wazuh level threshold, cleanup of the IRIS test alerts, French summary.
 
 This file is the journal of phase 2 on laptop 1.
 
@@ -56,7 +56,7 @@ The backend receives webhooks and stores workflows; Orborus runs them by startin
 | 2.4 | DFIR-IRIS | done |
 | 2.5 | First playbook: Wazuh alert to DFIR-IRIS alert | done |
 | 2.6 | MISP with test indicators, lookup in the playbook | done |
-| 2.7 | Playbook exported to `shuffle/` without secrets | to do |
+| 2.7 | Playbook exported to `shuffle/` without secrets | done |
 
 ## 4. Steps
 
@@ -348,6 +348,53 @@ Observations:
 - IRIS records its creation time as "Source Event Time"; passing the Wazuh `timestamp` in `alert_source_event_time` is a later improvement.
 - The first MISP key was visible on a screenshot of the node settings: it was deleted in MISP and replaced by a new read-only key before the tests above.
 
+### Maintenance of the soc VM (26 November 2026)
+
+| Check | Result |
+|---|---|
+| `timedatectl` | `System clock synchronized: yes`, NTP active, time zone Africa/Tunis: timestamps of the alerts can be trusted |
+| `df -h /` | 47 GB used, 33 GB free: images 22.7 GB (51, of which the Shuffle app images started at each execution), volumes 13.4 GB |
+| Volumes | `single-node_wazuh_queue` 12 GB, of which 11 GB in `queue/vd`; MISP database 1.6 GB; Wazuh indexer 4.2 MB |
+| Container logs | Largest 1.8 MB |
+| Wazuh indexer | `path.data` is the volume; `_cat/indices` shows 186 alerts on 12 November and a few per day since (manager only, no agent yet): the small size is normal, and alerts kept since 12 November show that the data survives container recreation |
+
+`queue/vd` holds the database of the vulnerability detection module disabled in step 2.4 (`feed`, `inventory`, `event`, `reports`...). With `<enabled>no</enabled>` checked in `wazuh_manager.conf`: manager stopped (`docker compose stop wazuh.manager`), content of `vd` deleted (`find .../vd -mindepth 1 -delete`, the directory and its permissions kept), manager started again.
+
+| Test | Result |
+|---|---|
+| `df -h /` | 36 GB used, 44 GB free (11 GB freed); `vd` 56 kB |
+| `wazuh-control status` | `analysisd`, `remoted`, `integratord`, `modulesd`, `db`, `authd`, `apid` running (`clusterd`, `maild`, `agentlessd`, `csyslogd` off by default in single node) |
+| `ossec.log` | `Enabling integration for: 'shuffle'`, no error after the restart |
+| Restart alert (rule 502) | Integration started at 17:15:23 UTC, Shuffle execution at 17:15:38 with three nodes run, IRIS alert 13 at 17:15:47 |
+
+Not done, on purpose:
+
+- Log rotation in Docker's `daemon.json`: logs are small, and the change needs Docker restarted and all 18 containers recreated.
+- Removal of unused images: `docker image prune -a` would also remove the Shuffle Tools, http and worker images, which only run during an execution.
+
+Limit found in `ossec.log`: when the VM starts, the Wazuh manager can be ready before the Shuffle backend; the integration then logs `Connection refused` and the alert is not sent again (`wazuh-integratord` does not retry). The alert stays in the Wazuh indexer and dashboard. In the lab, scenarios are only run once all containers are up; a queue between Wazuh and Shuffle is outside the brief.
+
+### Step 2.7: playbook export (done, 26 November 2026)
+
+Shuffle, Workflows, `Wazuh-Alerts`, Export, then cleaned on the Windows host before it entered the repository, in `shuffle/wazuh-alerts-workflow.json`:
+
+| Item in the raw export | Handling |
+|---|---|
+| MISP key and IRIS key, in clear in the `headers` fields | Replaced by `change-me` |
+| Webhook identifier (trigger identifier and URL) | Replaced by `webhook-id-removed` |
+| App icons as base64 images (most of the file) | Removed; Shuffle restores them on import |
+| `url` of the two http nodes, left empty by Shuffle's export | Put back by hand (`9443/attributes/restSearch`, `8443/alerts/add`) |
+| Owner and organisation | Already empty in Shuffle's export |
+
+| Test | Result |
+|---|---|
+| Search for each real key in the cleaned file (key read with `Read-Host -AsSecureString`, never displayed) | MISP key: not found |
+| Strings of 32 characters or more made of letters, digits, `-` and `_` (both keys are such strings, longer than 36) | Only the ten 36-character identifiers of the workflow, nodes, branches and apps |
+| `Authorization` and `webhook_` occurrences | `Authorization: change-me`, `Authorization: Bearer change-me`, `webhook_webhook-id-removed` |
+| Structure | Four nodes, three edges, no condition, as in step 2.6e |
+
+Import steps and known limits: `shuffle/README.md`.
+
 ## 5. Problems met and how they were handled
 
 | Problem | Handling |
@@ -365,6 +412,9 @@ Observations:
 | `misp-core` unhealthy at first start, `misp-nginx` not started | Waited for the first initialisation (about 5 minutes), then `docker compose up -d` again |
 | Shuffle branch condition "srcip is empty" did not stop its branch | Workflow rebuilt as a single chain; empty address replaced by `none` with the Liquid `default` filter |
 | MISP API key visible on a screenshot | Key deleted and replaced |
+| 11 GB left in `queue/vd` by the disabled vulnerability detection | Deleted with the manager stopped |
+| Alert lost when the manager starts before Shuffle (`Connection refused`, no retry) | Documented as a limit; scenarios run with all containers up |
+| Shuffle export: keys in clear, icons as base64, URLs of the http nodes empty | Cleaned on the host and checked before the commit; URLs put back |
 
 ## 6. Résumé pour le rapport
 
